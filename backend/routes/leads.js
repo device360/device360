@@ -135,3 +135,30 @@ router.patch("/:id", async (req, res) => {
 });
 
 export default router;
+
+// ─── DELETE /api/leads/all ────────────────────────────────────────────────────
+// Danger zone — used by admin settings
+router.delete("/all", async (req, res) => {
+  try {
+    const snap = await db.collection("leads").get();
+    const batch = db.batch();
+    snap.docs.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    console.log(`[leads] ⚠️ Deleted all ${snap.size} leads`);
+    return res.json({ success: true, deleted: snap.size });
+  } catch (err) {
+    console.error("[leads] delete-all error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── DELETE /api/leads/:id ────────────────────────────────────────────────────
+router.delete("/:id", async (req, res) => {
+  try {
+    await db.collection("leads").doc(req.params.id).delete();
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[leads] delete error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
