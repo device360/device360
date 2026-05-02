@@ -137,7 +137,7 @@ export const PricingDisplay: React.FC<StepProps> = ({
           className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-black text-sm hover:from-blue-700 hover:to-blue-800 shadow-lg shadow-blue-200 transition-all active:scale-95"
           data-testid="proceed-to-fix-button"
         >
-          Book This Repair →
+          Repair →
         </button>
       </div>
 

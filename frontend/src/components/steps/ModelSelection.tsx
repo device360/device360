@@ -310,20 +310,20 @@ const getModelImageUrl = (brandId: string, model: string): string | null => {
 
 const getRealModelsForBrand = (brandId?: string, brandName?: string, fallback: string[] = []) => {
   const key = `${brandId || ''} ${brandName || ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '');
-  if (key.includes('pixel'))                                    return REAL_MODELS.pixel;
-  if (key.includes('realme'))                                   return REAL_MODELS.realme;
-  if (key.includes('oneplus'))                                  return REAL_MODELS.oneplus;
-  if (key.includes('samsung'))                                  return REAL_MODELS.samsung;
+  if (key.includes('pixel')) return REAL_MODELS.pixel;
+  if (key.includes('realme')) return REAL_MODELS.realme;
+  if (key.includes('oneplus')) return REAL_MODELS.oneplus;
+  if (key.includes('samsung')) return REAL_MODELS.samsung;
   if (key.includes('xiaomi') || key.includes('redmi') || key.includes('poco')) return REAL_MODELS.xiaomi;
-  if (key.includes('apple') || key.includes('iphone'))         return REAL_MODELS.apple;
-  if (key.includes('vivo'))                                     return REAL_MODELS.vivo;
-  if (key.includes('oppo'))                                     return REAL_MODELS.oppo;
-  if (key.includes('motorola'))                                 return REAL_MODELS.motorola;
-  if (key.includes('huawei'))                                   return REAL_MODELS.huawei;
+  if (key.includes('apple') || key.includes('iphone')) return REAL_MODELS.apple;
+  if (key.includes('vivo')) return REAL_MODELS.vivo;
+  if (key.includes('oppo')) return REAL_MODELS.oppo;
+  if (key.includes('motorola')) return REAL_MODELS.motorola;
+  if (key.includes('huawei')) return REAL_MODELS.huawei;
   return fallback;
 };
 
-const isProModel     = (model: string) => /pro|ultra|max|plus|fold/i.test(model);
+const isProModel = (model: string) => /pro|ultra|max|plus|fold/i.test(model);
 const isCompactModel = (model: string) => /mini|se|lite|\bc\b|\ba\b/i.test(model);
 
 // ─── Thumbnail ────────────────────────────────────────────────────────────────
@@ -379,10 +379,10 @@ export const ModelSelection: React.FC<StepProps> = ({
   goToPreviousStep,
 }) => {
   const [selected, setSelected] = useState(formData.model || '');
-  const [query,    setQuery]    = useState('');
+  const [query, setQuery] = useState('');
 
-  const currentBrand     = brands.find((b) => b.id === formData.brand?.id);
-  const availableModels  = useMemo(
+  const currentBrand = brands.find((b) => b.id === formData.brand?.id);
+  const availableModels = useMemo(
     () => getRealModelsForBrand(formData.brand?.id, formData.brand?.name, currentBrand?.models || []),
     [currentBrand?.models, formData.brand?.id, formData.brand?.name],
   );
@@ -401,7 +401,6 @@ export const ModelSelection: React.FC<StepProps> = ({
 
   return (
     <div className="bg-[linear-gradient(180deg,#ffffff_0%,#f7f7fb_100%)] rounded-[28px] border border-white/70 shadow-[0_20px_60px_rgba(15,23,42,0.08)] overflow-hidden">
-
       {/* Header */}
       <div className="px-6 pt-7 pb-5 text-center border-b border-gray-100/80 bg-white/70 backdrop-blur-xl">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 mb-3">
@@ -419,7 +418,6 @@ export const ModelSelection: React.FC<StepProps> = ({
 
       {/* Body */}
       <div className="p-4 sm:p-6 space-y-4">
-
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -438,8 +436,8 @@ export const ModelSelection: React.FC<StepProps> = ({
             <AnimatePresence initial={false}>
               {filteredModels.map((model, i) => {
                 const isSelected = selected === model;
-                const pro        = isProModel(model);
-                const compact    = isCompactModel(model);
+                const pro = isProModel(model);
+                const compact = isCompactModel(model);
 
                 return (
                   <motion.button
@@ -448,7 +446,11 @@ export const ModelSelection: React.FC<StepProps> = ({
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ delay: i * 0.015, type: 'spring', stiffness: 320, damping: 28 }}
-                    onClick={() => setSelected(model)}
+                    onClick={() => {
+                      setSelected(model);
+                      updateFormData({ model, issue: null, pricing: null });
+                      goToNextStep();
+                    }}
                     className={`w-full px-4 sm:px-5 py-3.5 flex items-center gap-4 text-left transition-all border-b border-gray-100 last:border-b-0 ${
                       isSelected ? 'bg-blue-50/80' : 'bg-white hover:bg-gray-50 active:bg-gray-100'
                     }`}
@@ -558,7 +560,7 @@ export const ModelSelection: React.FC<StepProps> = ({
             }`}
             data-testid="continue-button"
           >
-            {selected ? `Continue with ${selected} →` : 'Select a model to continue'}
+            {selected ? `Continue` : 'Select a model to continue'}
           </button>
         </div>
       </div>

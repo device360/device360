@@ -5,14 +5,32 @@
 @tailwind utilities;
 
 @layer base {
-  * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     @apply bg-white text-gray-900;
+    overflow-x: hidden;
+    touch-action: manipulation;
   }
-  html { scroll-behavior: smooth; }
+
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 16px;
+  }
 }
 
 @layer utilities {

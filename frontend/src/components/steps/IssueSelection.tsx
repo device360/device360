@@ -47,6 +47,41 @@ const getStrikePrice = (value: unknown): string | null => {
   return null;
 };
 
+const getNumericPrice = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const candidate = obj.currentPrice ?? obj.price ?? obj.amount ?? obj.finalPrice ?? obj.value;
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate;
+    if (typeof candidate === 'string') {
+      const parsed = Number(candidate.replace(/[^\d.-]/g, ''));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/[^\d.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
+
+const getNumericOldPrice = (value: unknown): number => {
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const candidate = obj.oldPrice ?? obj.mrp ?? obj.regularPrice ?? obj.originalPrice;
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate;
+    if (typeof candidate === 'string') {
+      const parsed = Number(candidate.replace(/[^\d.-]/g, ''));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+  }
+
+  return 0;
+};
+
 const iconMap = Icons as unknown as Record<string, React.ComponentType<{ className?: string }>>;
 
 const IssuePill: React.FC<{ label: string; tone?: 'live' | 'default' }> = ({ label, tone = 'default' }) => (
@@ -177,7 +212,7 @@ export const IssueSelection: React.FC<StepProps> = ({
   goToNextStep,
   goToPreviousStep,
 }) => {
-  const [selected, setSelected] = useState<Issue | null>(formData.issue || null);
+  const [selectedIssues, setSelectedIssues] = useState<Issue[]>(formData.issue ? [formData.issue] : []);
 
   const liveIssues = issues.filter((i) => i.category === 'live');
   const otherIssues = issues.filter((i) => i.category === 'other');
@@ -188,6 +223,7 @@ export const IssueSelection: React.FC<StepProps> = ({
         const pricing = formData.brand ? getPriceForRepair(formData.brand.id, formData.model, issue.id) : null;
         return {
           issue,
+          pricing,
           priceLabel: formatMoney(pricing),
           strikePrice: getStrikePrice(pricing),
         };
@@ -201,6 +237,7 @@ export const IssueSelection: React.FC<StepProps> = ({
         const pricing = formData.brand ? getPriceForRepair(formData.brand.id, formData.model, issue.id) : null;
         return {
           issue,
+          pricing,
           priceLabel: formatMoney(pricing),
           strikePrice: getStrikePrice(pricing),
         };
@@ -208,10 +245,56 @@ export const IssueSelection: React.FC<StepProps> = ({
     [formData.brand, formData.model, otherIssues],
   );
 
+  const selectedPricingDetails = useMemo(() => {
+    if (!formData.brand) return [];
+
+    return selectedIssues.map((issue) => {
+      const pricing = getPriceForRepair(formData.brand!.id, formData.model, issue.id);
+      return {
+        issue,
+        pricing,
+        price: getNumericPrice(pricing),
+        oldPrice: getNumericOldPrice(pricing),
+      };
+    });
+  }, [formData.brand, formData.model, selectedIssues]);
+
+  const totalPrice = selectedPricingDetails.reduce((sum, item) => sum + item.price, 0);
+  const totalOldPrice = selectedPricingDetails.reduce((sum, item) => sum + item.oldPrice, 0);
+
+  const handleToggle = (issue: Issue) => {
+    setSelectedIssues((prev) => {
+      const exists = prev.some((i) => i.id === issue.id);
+      if (exists) return prev.filter((i) => i.id !== issue.id);
+      return [...prev, issue];
+    });
+  };
+
   const handleContinue = () => {
-    if (!selected || !formData.brand) return;
-    const pricing = getPriceForRepair(formData.brand.id, formData.model, selected.id);
-    updateFormData({ issue: selected, pricing });
+    if (!selectedIssues.length || !formData.brand) return;
+
+    const breakdown = selectedPricingDetails.map((item) => ({
+      id: item.issue.id,
+      name: item.issue.name,
+      time: item.issue.time,
+      price: item.price,
+      oldPrice: item.oldPrice,
+    }));
+
+    const combinedPricing = {
+      name: selectedIssues.map((i) => i.name).join(' + '),
+      time: selectedIssues.length === 1 ? selectedIssues[0].time : `${selectedIssues.length} repairs selected`,
+      price: totalPrice,
+      oldPrice: totalOldPrice > totalPrice ? totalOldPrice : undefined,
+      breakdown,
+    };
+
+    updateFormData({
+      issue: selectedIssues[0],
+      issues: selectedIssues,
+      pricing: combinedPricing,
+    } as any);
+
     goToNextStep();
   };
 
@@ -272,10 +355,10 @@ export const IssueSelection: React.FC<StepProps> = ({
                 <IssueRow
                   issue={issue}
                   isLive
-                  isSelected={selected?.id === issue.id}
+                  isSelected={selectedIssues.some((s) => s.id === issue.id)}
                   priceLabel={priceLabel}
                   strikePrice={strikePrice}
-                  onSelect={() => setSelected(issue)}
+                  onSelect={() => handleToggle(issue)}
                 />
               </motion.div>
             ))}
@@ -309,10 +392,10 @@ export const IssueSelection: React.FC<StepProps> = ({
               >
                 <IssueRow
                   issue={issue}
-                  isSelected={selected?.id === issue.id}
+                  isSelected={selectedIssues.some((s) => s.id === issue.id)}
                   priceLabel={priceLabel}
                   strikePrice={strikePrice}
-                  onSelect={() => setSelected(issue)}
+                  onSelect={() => handleToggle(issue)}
                 />
               </motion.div>
             ))}
@@ -321,40 +404,76 @@ export const IssueSelection: React.FC<StepProps> = ({
 
         {/* Selected preview */}
         <AnimatePresence>
-          {selected && (
+          {selectedIssues.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 10, height: 0 }}
               animate={{ opacity: 1, y: 0, height: 'auto' }}
               exit={{ opacity: 0, y: -10, height: 0 }}
               className={`overflow-hidden rounded-[24px] border px-4 py-4 shadow-sm ${
-                selected.category === 'live'
+                selectedIssues.some((s) => s.category === 'live')
                   ? 'border-red-100 bg-gradient-to-r from-red-50 to-orange-50'
                   : 'border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50'
               }`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-start gap-3">
                 <div
                   className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
-                    selected.category === 'live' ? 'bg-red-500 shadow-red-200' : 'bg-blue-600 shadow-blue-200'
+                    selectedIssues.some((s) => s.category === 'live')
+                      ? 'bg-red-500 shadow-red-200'
+                      : 'bg-blue-600 shadow-blue-200'
                   }`}
                 >
                   <CheckCircle2 className="w-5 h-5 text-white" />
                 </div>
+
                 <div className="min-w-0 flex-1">
-                  <p className={`text-xs font-semibold ${selected.category === 'live' ? 'text-red-500' : 'text-blue-500'}`}>
-                    Selected Issue
+                  <p
+                    className={`text-xs font-semibold ${
+                      selectedIssues.some((s) => s.category === 'live') ? 'text-red-500' : 'text-blue-500'
+                    }`}
+                  >
+                    Selected Repairs
                   </p>
-                  <p className={`mt-0.5 text-sm sm:text-base font-black truncate ${selected.category === 'live' ? 'text-red-900' : 'text-blue-900'}`}>
-                    {selected.name}
+                  <p
+                    className={`mt-0.5 text-sm sm:text-base font-black truncate ${
+                      selectedIssues.some((s) => s.category === 'live') ? 'text-red-900' : 'text-blue-900'
+                    }`}
+                  >
+                    {selectedIssues.map((s) => s.name).join(', ')}
                   </p>
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedIssues.map((s) => (
+                      <span
+                        key={s.id}
+                        className="inline-flex items-center rounded-full bg-white/80 border border-black/5 px-2.5 py-1 text-[11px] font-semibold text-gray-700"
+                      >
+                        {s.name}
+                      </span>
+                    ))}
+                  </div>
                 </div>
+
                 <div className="text-right shrink-0">
-                  <p className={`text-xs font-semibold ${selected.category === 'live' ? 'text-red-500' : 'text-blue-500'}`}>
-                    Estimated Time
+                  <p
+                    className={`text-xs font-semibold ${
+                      selectedIssues.some((s) => s.category === 'live') ? 'text-red-500' : 'text-blue-500'
+                    }`}
+                  >
+                    Total Amount
                   </p>
-                  <p className={`text-sm font-black ${selected.category === 'live' ? 'text-red-800' : 'text-blue-800'}`}>
-                    {selected.time}
+                  <p
+                    className={`text-lg font-black ${
+                      selectedIssues.some((s) => s.category === 'live') ? 'text-red-800' : 'text-blue-800'
+                    }`}
+                  >
+                    {formatMoney(totalPrice) || '₹0'}
                   </p>
+                  {totalOldPrice > totalPrice && (
+                    <p className="text-[11px] text-gray-500 line-through">
+                      {formatMoney(totalOldPrice)}
+                    </p>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -373,17 +492,17 @@ export const IssueSelection: React.FC<StepProps> = ({
 
           <button
             onClick={handleContinue}
-            disabled={!selected}
+            disabled={!selectedIssues.length}
             className={`flex-1 py-3.5 rounded-[18px] font-bold text-sm transition-all shadow-sm active:scale-[0.99] ${
-              selected
-                ? selected.category === 'live'
+              selectedIssues.length
+                ? selectedIssues.some((s) => s.category === 'live')
                   ? 'text-white bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 shadow-red-200'
                   : 'text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-200'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
             data-testid="continue-button"
           >
-            {selected ? 'Continue →' : 'Select an issue to continue'}
+            {selectedIssues.length ? `Continue` : 'Select an issue to continue'}
           </button>
         </div>
       </div>
