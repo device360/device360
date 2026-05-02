@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Smartphone, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { brands } from '../../data/mockData';
@@ -163,148 +163,143 @@ const BRAND_COLORS: Record<string, string> = {
 */
 const MODEL_FILE_MAP: Record<string, Record<string, string>> = {
   apple: {
-    'iPhone 16 Pro Max':  'iPhone_16_Pro_Max',
-    'iPhone 16 Pro':      'iPhone_16_Pro',
-    'iPhone 16 Plus':     'iPhone_16_Plus',
-    'iPhone 16':          'iPhone_16',
-    'iPhone 15 Pro Max':  'iPhone_15_Pro_Max',
-    'iPhone 15 Pro':      'iPhone_15_Pro',
-    'iPhone 15 Plus':     'iPhone_15_Plus',
-    'iPhone 15':          'iPhone_15',
-    'iPhone 14 Pro Max':  'iPhone_14_Pro_Max',
-    'iPhone 14 Pro':      'iPhone_14_Pro',
-    'iPhone 14':          'iPhone_14',
-    'iPhone SE (3rd gen)':'iPhone_SE_(3rd_gen)',
+    'iPhone 16 Pro Max': 'iPhone_16_Pro_Max',
+    'iPhone 16 Pro': 'iPhone_16_Pro',
+    'iPhone 16 Plus': 'iPhone_16_Plus',
+    'iPhone 16': 'iPhone_16',
+    'iPhone 15 Pro Max': 'iPhone_15_Pro_Max',
+    'iPhone 15 Pro': 'iPhone_15_Pro',
+    'iPhone 15 Plus': 'iPhone_15_Plus',
+    'iPhone 15': 'iPhone_15',
+    'iPhone 14 Pro Max': 'iPhone_14_Pro_Max',
+    'iPhone 14 Pro': 'iPhone_14_Pro',
+    'iPhone 14': 'iPhone_14',
+    'iPhone SE (3rd gen)': 'iPhone_SE_(3rd_gen)',
   },
   samsung: {
-    'Galaxy S25 Ultra':   'Galaxy_S25_Ultra',
-    'Galaxy S25+':        'Galaxy_S25Plus',
-    'Galaxy S25':         'Galaxy_S25',
-    'Galaxy Z Fold6':     'Galaxy_Z_Fold6',
-    'Galaxy Z Flip6':     'Galaxy_Z_Flip6',
-    'Galaxy A55 5G':      'Galaxy_A55_5G',
-    'Galaxy A35 5G':      'Galaxy_A35_5G',
-    'Galaxy A25 5G':      'Galaxy_A25_5G',
-    'Galaxy M35 5G':      'Galaxy_M35_5G',
-    'Galaxy M55 5G':      'Galaxy_M55_5G',
+    'Galaxy S25 Ultra': 'Galaxy_S25_Ultra',
+    'Galaxy S25+': 'Galaxy_S25Plus',
+    'Galaxy S25': 'Galaxy_S25',
+    'Galaxy Z Fold6': 'Galaxy_Z_Fold6',
+    'Galaxy Z Flip6': 'Galaxy_Z_Flip6',
+    'Galaxy A55 5G': 'Galaxy_A55_5G',
+    'Galaxy A35 5G': 'Galaxy_A35_5G',
+    'Galaxy A25 5G': 'Galaxy_A25_5G',
+    'Galaxy M35 5G': 'Galaxy_M35_5G',
+    'Galaxy M55 5G': 'Galaxy_M55_5G',
   },
   oneplus: {
-    'OnePlus 13':             'OnePlus_13',
-    'OnePlus 13R':            'OnePlus_13R',
-    'OnePlus 12':             'OnePlus_12',
-    'OnePlus 12R':            'OnePlus_12R',
-    'OnePlus Open':           'OnePlus_Open',
-    'OnePlus Nord 4':         'OnePlus_Nord_4',
-    'OnePlus Nord CE 4':      'OnePlus_Nord_CE_4',
+    'OnePlus 13': 'OnePlus_13',
+    'OnePlus 13R': 'OnePlus_13R',
+    'OnePlus 12': 'OnePlus_12',
+    'OnePlus 12R': 'OnePlus_12R',
+    'OnePlus Open': 'OnePlus_Open',
+    'OnePlus Nord 4': 'OnePlus_Nord_4',
+    'OnePlus Nord CE 4': 'OnePlus_Nord_CE_4',
     'OnePlus Nord CE 4 Lite': 'OnePlus_Nord_CE_4_Lite',
   },
   xiaomi: {
-    'Xiaomi 15 Ultra':    'Xiaomi_15_Ultra',
-    'Xiaomi 15':          'Xiaomi_15',
-    'Xiaomi 14 Ultra':    'Xiaomi_14_Ultra',
-    'Xiaomi 14':          'Xiaomi_14',
+    'Xiaomi 15 Ultra': 'Xiaomi_15_Ultra',
+    'Xiaomi 15': 'Xiaomi_15',
+    'Xiaomi 14 Ultra': 'Xiaomi_14_Ultra',
+    'Xiaomi 14': 'Xiaomi_14',
     'Redmi Note 14 Pro+': 'Redmi_Note_14_ProPlus',
-    'Redmi Note 14 Pro':  'Redmi_Note_14_Pro',
-    'Redmi Note 14':      'Redmi_Note_14',
-    'Redmi 13C':          'Redmi_13C',
-    'POCO X7 Pro':        'POCO_X7_Pro',
-    'POCO X7':            'POCO_X7',
-    'POCO M7 Pro':        'POCO_M7_Pro',
+    'Redmi Note 14 Pro': 'Redmi_Note_14_Pro',
+    'Redmi Note 14': 'Redmi_Note_14',
+    'Redmi 13C': 'Redmi_13C',
+    'POCO X7 Pro': 'POCO_X7_Pro',
+    'POCO X7': 'POCO_X7',
+    'POCO M7 Pro': 'POCO_M7_Pro',
   },
   realme: {
-    'realme GT 7 Pro':        'realme_GT_7_Pro',
-    'realme GT 7':            'realme_GT_7',
-    'realme GT 7T':           'realme_GT_7T',
-    'realme 14 Pro+':         'realme_14_ProPlus',
-    'realme 14 Pro':          'realme_14_Pro',
-    'realme 13 Pro+':         'realme_13_ProPlus',
-    'realme 13 Pro':          'realme_13_Pro',
-    'realme 12 Pro+':         'realme_12_ProPlus',
-    'realme 12 Pro':          'realme_12_Pro',
-    'realme 12x 5G':          'realme_12x_5G',
-    'realme C75':             'realme_C75',
-    'realme C65 5G':          'realme_C65_5G',
-    'realme P3 Pro':          'realme_P3_Pro',
-    'realme P2 Pro':          'realme_P2_Pro',
+    'realme GT 7 Pro': 'realme_GT_7_Pro',
+    'realme GT 7': 'realme_GT_7',
+    'realme GT 7T': 'realme_GT_7T',
+    'realme 14 Pro+': 'realme_14_ProPlus',
+    'realme 14 Pro': 'realme_14_Pro',
+    'realme 13 Pro+': 'realme_13_ProPlus',
+    'realme 13 Pro': 'realme_13_Pro',
+    'realme 12 Pro+': 'realme_12_ProPlus',
+    'realme 12 Pro': 'realme_12_Pro',
+    'realme 12x 5G': 'realme_12x_5G',
+    'realme C75': 'realme_C75',
+    'realme C65 5G': 'realme_C65_5G',
+    'realme P3 Pro': 'realme_P3_Pro',
+    'realme P2 Pro': 'realme_P2_Pro',
     'realme Narzo 70 Turbo 5G': 'realme_Narzo_70_Turbo_5G',
   },
   pixel: {
-    'Pixel 10 Pro Fold':  'Pixel_10_Pro_Fold',
-    'Pixel 10 Pro XL':    'Pixel_10_Pro_XL',
-    'Pixel 10 Pro':       'Pixel_10_Pro',
-    'Pixel 10':           'Pixel_10',
-    'Pixel 9 Pro Fold':   'Pixel_9_Pro_Fold',
-    'Pixel 9 Pro XL':     'Pixel_9_Pro_XL',
-    'Pixel 9 Pro':        'Pixel_9_Pro',
-    'Pixel 9':            'Pixel_9',
-    'Pixel 9a':           'Pixel_9a',
-    'Pixel 8 Pro':        'Pixel_8_Pro',
-    'Pixel 8':            'Pixel_8',
-    'Pixel 8a':           'Pixel_8a',
-    'Pixel 7 Pro':        'Pixel_7_Pro',
-    'Pixel 7':            'Pixel_7',
-    'Pixel 7a':           'Pixel_7a',
-    'Pixel Fold':         'Pixel_Fold',
-    'Pixel 6 Pro':        'Pixel_6_Pro',
-    'Pixel 6':            'Pixel_6',
-    'Pixel 6a':           'Pixel_6a',
+    'Pixel 10 Pro Fold': 'Pixel_10_Pro_Fold',
+    'Pixel 10 Pro XL': 'Pixel_10_Pro_XL',
+    'Pixel 10 Pro': 'Pixel_10_Pro',
+    'Pixel 10': 'Pixel_10',
+    'Pixel 9 Pro Fold': 'Pixel_9_Pro_Fold',
+    'Pixel 9 Pro XL': 'Pixel_9_Pro_XL',
+    'Pixel 9 Pro': 'Pixel_9_Pro',
+    'Pixel 9': 'Pixel_9',
+    'Pixel 9a': 'Pixel_9a',
+    'Pixel 8 Pro': 'Pixel_8_Pro',
+    'Pixel 8': 'Pixel_8',
+    'Pixel 8a': 'Pixel_8a',
+    'Pixel 7 Pro': 'Pixel_7_Pro',
+    'Pixel 7': 'Pixel_7',
+    'Pixel 7a': 'Pixel_7a',
+    'Pixel Fold': 'Pixel_Fold',
+    'Pixel 6 Pro': 'Pixel_6_Pro',
+    'Pixel 6': 'Pixel_6',
+    'Pixel 6a': 'Pixel_6a',
   },
   vivo: {
-    'vivo X200 Pro':  'vivo_X200_Pro',
-    'vivo X200':      'vivo_X200',
-    'vivo X100 Pro':  'vivo_X100_Pro',
-    'vivo X100':      'vivo_X100',
-    'vivo V40 Pro':   'vivo_V40_Pro',
-    'vivo V40':       'vivo_V40',
-    'vivo V30 Pro':   'vivo_V30_Pro',
-    'vivo V30':       'vivo_V30',
-    'vivo T3 Ultra':  'vivo_T3_Ultra',
-    'vivo T3 Pro':    'vivo_T3_Pro',
-    'vivo Y200 Pro':  'vivo_Y200_Pro',
+    'vivo X200 Pro': 'vivo_X200_Pro',
+    'vivo X200': 'vivo_X200',
+    'vivo X100 Pro': 'vivo_X100_Pro',
+    'vivo X100': 'vivo_X100',
+    'vivo V40 Pro': 'vivo_V40_Pro',
+    'vivo V40': 'vivo_V40',
+    'vivo V30 Pro': 'vivo_V30_Pro',
+    'vivo V30': 'vivo_V30',
+    'vivo T3 Ultra': 'vivo_T3_Ultra',
+    'vivo T3 Pro': 'vivo_T3_Pro',
+    'vivo Y200 Pro': 'vivo_Y200_Pro',
   },
   oppo: {
-    'OPPO Find X8 Pro':   'OPPO_Find_X8_Pro',
-    'OPPO Find X8':       'OPPO_Find_X8',
+    'OPPO Find X8 Pro': 'OPPO_Find_X8_Pro',
+    'OPPO Find X8': 'OPPO_Find_X8',
     'OPPO Find X7 Ultra': 'OPPO_Find_X7_Ultra',
     'OPPO Reno12 Pro 5G': 'OPPO_Reno12_Pro_5G',
-    'OPPO Reno12 5G':     'OPPO_Reno12_5G',
+    'OPPO Reno12 5G': 'OPPO_Reno12_5G',
     'OPPO Reno11 Pro 5G': 'OPPO_Reno11_Pro_5G',
-    'OPPO Reno11 5G':     'OPPO_Reno11_5G',
-    'OPPO F27 Pro+ 5G':   'OPPO_F27_ProPlus_5G',
-    'OPPO A3 Pro 5G':     'OPPO_A3_Pro_5G',
-    'OPPO A79 5G':        'OPPO_A79_5G',
+    'OPPO Reno11 5G': 'OPPO_Reno11_5G',
+    'OPPO F27 Pro+ 5G': 'OPPO_F27_ProPlus_5G',
+    'OPPO A3 Pro 5G': 'OPPO_A3_Pro_5G',
+    'OPPO A79 5G': 'OPPO_A79_5G',
   },
   motorola: {
-    'motorola edge 50 ultra':  'motorola_edge_50_ultra',
-    'motorola edge 50 pro':    'motorola_edge_50_pro',
+    'motorola edge 50 ultra': 'motorola_edge_50_ultra',
+    'motorola edge 50 pro': 'motorola_edge_50_pro',
     'motorola edge 50 fusion': 'motorola_edge_50_fusion',
-    'motorola razr 50 ultra':  'motorola_razr_50_ultra',
-    'motorola razr 50':        'motorola_razr_50',
-    'motorola g85 5G':         'motorola_g85_5G',
-    'motorola g64 5G':         'motorola_g64_5G',
-    'motorola g54 5G':         'motorola_g54_5G',
-    'motorola edge 40 neo':    'motorola_edge_40_neo',
+    'motorola razr 50 ultra': 'motorola_razr_50_ultra',
+    'motorola razr 50': 'motorola_razr_50',
+    'motorola g85 5G': 'motorola_g85_5G',
+    'motorola g64 5G': 'motorola_g64_5G',
+    'motorola g54 5G': 'motorola_g54_5G',
+    'motorola edge 40 neo': 'motorola_edge_40_neo',
   },
   huawei: {
     'HUAWEI Pura 70 Ultra': 'HUAWEI_Pura_70_Ultra',
-    'HUAWEI Pura 70 Pro':   'HUAWEI_Pura_70_Pro',
-    'HUAWEI Pura 70':       'HUAWEI_Pura_70',
-    'HUAWEI Mate X5':       'HUAWEI_Mate_X5',
-    'HUAWEI nova 12 Pro':   'HUAWEI_nova_12_Pro',
-    'HUAWEI nova 12':       'HUAWEI_nova_12',
-    'HUAWEI Mate 60 Pro':   'HUAWEI_Mate_60_Pro',
+    'HUAWEI Pura 70 Pro': 'HUAWEI_Pura_70_Pro',
+    'HUAWEI Pura 70': 'HUAWEI_Pura_70',
+    'HUAWEI Mate X5': 'HUAWEI_Mate_X5',
+    'HUAWEI nova 12 Pro': 'HUAWEI_nova_12_Pro',
+    'HUAWEI nova 12': 'HUAWEI_nova_12',
+    'HUAWEI Mate 60 Pro': 'HUAWEI_Mate_60_Pro',
   },
 };
-
-// Folder names on disk match the brand keys exactly (all lowercase)
-// e.g. phone_images/apple/, phone_images/samsung/, phone_images/pixel/, etc.
 
 const getModelImageUrl = (brandId: string, model: string): string | null => {
   const id = (brandId || '').toLowerCase();
   const filename = MODEL_FILE_MAP[id]?.[model];
   if (!filename) return null;
-  // Adjust this base path to wherever you serve phone_images/ from.
-  // If placed in /public/phone_images, use:  /phone_images/${id}/${filename}.png
   return `/phone_images/${id}/${filename}.jpg`;
 };
 
@@ -325,8 +320,6 @@ const getRealModelsForBrand = (brandId?: string, brandName?: string, fallback: s
 
 const isProModel = (model: string) => /pro|ultra|max|plus|fold/i.test(model);
 const isCompactModel = (model: string) => /mini|se|lite|\bc\b|\ba\b/i.test(model);
-
-// ─── Thumbnail ────────────────────────────────────────────────────────────────
 
 const ModelThumbnail: React.FC<{ brandId: string; model: string }> = ({ brandId, model }) => {
   const [failed, setFailed] = useState(false);
@@ -359,8 +352,6 @@ const ModelThumbnail: React.FC<{ brandId: string; model: string }> = ({ brandId,
   );
 };
 
-// ─── Brand chip ───────────────────────────────────────────────────────────────
-
 const BrandChip: React.FC<{ brandName?: string }> = ({ brandName }) => (
   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 border border-gray-200 text-gray-700 text-xs font-semibold">
     <span className="w-5 h-5 rounded-full bg-white border border-gray-200 flex items-center justify-center text-[10px] font-black text-gray-700">
@@ -370,16 +361,34 @@ const BrandChip: React.FC<{ brandName?: string }> = ({ brandName }) => (
   </div>
 );
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 export const ModelSelection: React.FC<StepProps> = ({
   formData,
   updateFormData,
   goToNextStep,
   goToPreviousStep,
 }) => {
+  const sectionRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState(formData.model || '');
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+
+    const id = window.requestAnimationFrame(() => {
+      const targetY =
+        el.getBoundingClientRect().top +
+        window.scrollY -
+        window.innerHeight * 0.18;
+
+      window.scrollTo({
+        top: Math.max(0, targetY),
+        behavior: 'smooth',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(id);
+  }, []);
 
   const currentBrand = brands.find((b) => b.id === formData.brand?.id);
   const availableModels = useMemo(
@@ -400,8 +409,10 @@ export const ModelSelection: React.FC<StepProps> = ({
   };
 
   return (
-    <div className="bg-[linear-gradient(180deg,#ffffff_0%,#f7f7fb_100%)] rounded-[28px] border border-white/70 shadow-[0_20px_60px_rgba(15,23,42,0.08)] overflow-hidden">
-      {/* Header */}
+    <div
+      ref={sectionRef}
+      className="bg-[linear-gradient(180deg,#ffffff_0%,#f7f7fb_100%)] rounded-[28px] border border-white/70 shadow-[0_20px_60px_rgba(15,23,42,0.08)] overflow-hidden"
+    >
       <div className="px-6 pt-7 pb-5 text-center border-b border-gray-100/80 bg-white/70 backdrop-blur-xl">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 mb-3">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
@@ -416,9 +427,7 @@ export const ModelSelection: React.FC<StepProps> = ({
         <p className="mt-1 text-sm text-gray-500">Choose the exact device for repair support</p>
       </div>
 
-      {/* Body */}
       <div className="p-4 sm:p-6 space-y-4">
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -430,7 +439,6 @@ export const ModelSelection: React.FC<StepProps> = ({
           />
         </div>
 
-        {/* Model list */}
         <div className="rounded-[24px] border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="max-h-[420px] overflow-y-auto">
             <AnimatePresence initial={false}>
@@ -456,7 +464,6 @@ export const ModelSelection: React.FC<StepProps> = ({
                     }`}
                     data-testid={`model-option-${model.replace(/\s+/g, '-').toLowerCase()}`}
                   >
-                    {/* Thumbnail */}
                     <div className="shrink-0 relative">
                       <ModelThumbnail brandId={formData.brand?.id ?? ''} model={model} />
                       {pro && (
@@ -471,7 +478,6 @@ export const ModelSelection: React.FC<StepProps> = ({
                       )}
                     </div>
 
-                    {/* Label */}
                     <div className="flex-1 min-w-0">
                       <p className={`text-[15px] sm:text-base font-semibold leading-tight truncate ${isSelected ? 'text-blue-800' : 'text-gray-900'}`}>
                         {model}
@@ -481,7 +487,6 @@ export const ModelSelection: React.FC<StepProps> = ({
                       </p>
                     </div>
 
-                    {/* Check / chevron */}
                     <div className="shrink-0 flex items-center gap-3">
                       {isSelected ? (
                         <div
@@ -518,7 +523,6 @@ export const ModelSelection: React.FC<StepProps> = ({
           </div>
         </div>
 
-        {/* Selection banner */}
         <AnimatePresence>
           {selected && (
             <motion.div
@@ -540,7 +544,6 @@ export const ModelSelection: React.FC<StepProps> = ({
           )}
         </AnimatePresence>
 
-        {/* Nav buttons */}
         <div className="flex gap-3 pt-1">
           <button
             onClick={goToPreviousStep}
