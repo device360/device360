@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  CheckCircle, Phone, Clock, MapPin, MessageCircle,
-  Video, Zap, Share2, Copy, ExternalLink,
+  CheckCircle,
+  Phone,
+  Clock,
+  MapPin,
+  MessageCircle,
+  Video,
+  Zap,
+  Share2,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { StepProps, AddressFields } from '../../types';
@@ -17,13 +25,20 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
 
   useEffect(() => {
     if (!isLive || !formData.bookingId) return;
+
     const id = setInterval(async () => {
       try {
         const res = await fetch(`${BACKEND}/api/leads/${formData.bookingId}`);
         const data = await res.json();
-        if (data.lead?.videoLink) { setVideoLink(data.lead.videoLink); clearInterval(id); }
-      } catch { /* silent */ }
+        if (data.lead?.videoLink) {
+          setVideoLink(data.lead.videoLink);
+          clearInterval(id);
+        }
+      } catch {
+        /* silent */
+      }
     }, 15000);
+
     return () => clearInterval(id);
   }, [isLive, formData.bookingId]);
 
@@ -39,11 +54,11 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
   const handleWhatsApp = () => {
     const msg = encodeURIComponent(
       `Hi! My booking is confirmed.\n\n` +
-      `📋 Booking ID: #${formData.bookingId}\n` +
-      `📱 Device: ${formData.brand?.name} ${formData.model}\n` +
-      `🔧 Issue: ${formData.issue?.name}\n` +
-      `🕐 Pickup: ${formData.timeSlot}\n` +
-      `📍 Address: ${addrStr}`
+        `📋 Booking ID: #${formData.bookingId}\n` +
+        `📱 Device: ${formData.brand?.name} ${formData.model}\n` +
+        `🔧 Issue: ${formData.issue?.name}\n` +
+        `🕐 Pickup: Within 60 minutes\n` +
+        `📍 Address: ${addrStr}`,
     );
     window.open(`https://wa.me/919876543210?text=${msg}`, '_blank');
   };
@@ -53,7 +68,9 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
       await navigator.clipboard.writeText(`#${formData.bookingId}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   };
 
   const shareBooking = async () => {
@@ -63,12 +80,14 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
         text: `Track my repair: #${formData.bookingId}`,
         url: `${window.location.origin}/dashboard/${formData.bookingId}`,
       });
-    } catch { /* user cancelled */ }
+    } catch {
+      /* user cancelled */
+    }
   };
 
   return (
     <div className="space-y-4">
-      {/* ── Success animation ─────────────────────────────────────── */}
+      {/* Success animation */}
       <div className="text-center">
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
@@ -80,7 +99,6 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
             <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-xl shadow-green-200">
               <CheckCircle className="w-12 h-12 text-white" />
             </div>
-            {/* Rings */}
             <motion.div
               initial={{ scale: 0.8, opacity: 0.8 }}
               animate={{ scale: 1.6, opacity: 0 }}
@@ -109,30 +127,37 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
         </motion.div>
       </div>
 
-      {/* ── Booking ID card ───────────────────────────────────────── */}
+      {/* Booking ID card */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 text-white"
+        className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-4 sm:p-6 text-white"
       >
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-1">Booking ID</p>
-            <p className="text-4xl font-black tracking-tight" data-testid="booking-id">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
+          <div className="min-w-0">
+            <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-1">
+              Booking ID
+            </p>
+            <p
+              className="text-2xl sm:text-4xl font-black tracking-tight break-all leading-tight max-w-full"
+              data-testid="booking-id"
+            >
               #{formData.bookingId || 'PENDING'}
             </p>
           </div>
-          <div className="flex gap-2">
+
+          <div className="flex gap-2 self-start sm:self-auto">
             <button
               onClick={copyBookingId}
               className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
               title="Copy booking ID"
             >
-              {copied
-                ? <CheckCircle className="w-4 h-4 text-green-400" />
-                : <Copy className="w-4 h-4 text-gray-300" />
-              }
+              {copied ? (
+                <CheckCircle className="w-4 h-4 text-green-400" />
+              ) : (
+                <Copy className="w-4 h-4 text-gray-300" />
+              )}
             </button>
             <button
               onClick={shareBooking}
@@ -159,8 +184,8 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
               <div className="w-8 h-8 rounded-xl bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <Video className="w-4 h-4 text-white" />
               </div>
-              <div className="flex-1">
-                <p className="font-bold text-green-300 text-sm flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-green-300 text-sm flex items-center gap-2 flex-wrap">
                   LIVE Repair Eligible
                   <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                 </p>
@@ -195,15 +220,17 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
               <p className="text-xs text-gray-400">Confirmation via {formData.phone} within 15 min</p>
             </div>
           </div>
+
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0">
               <MapPin className="w-3.5 h-3.5 text-violet-400" />
             </div>
-            <div>
-              <p className="font-bold text-white text-sm">Pickup at {formData.timeSlot}</p>
-              <p className="text-xs text-gray-400 leading-relaxed">{addrStr}</p>
+            <div className="min-w-0">
+              <p className="font-bold text-white text-sm">Pickup within 60 minutes</p>
+              <p className="text-xs text-gray-400 leading-relaxed break-words">{addrStr}</p>
             </div>
           </div>
+
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
               <Clock className="w-3.5 h-3.5 text-green-400" />
@@ -218,7 +245,7 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
         </div>
       </motion.div>
 
-      {/* ── CTA Buttons ───────────────────────────────────────────── */}
+      {/* CTA Buttons */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
