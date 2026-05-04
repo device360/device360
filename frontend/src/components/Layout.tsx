@@ -38,6 +38,8 @@ const setSelectedLocation = (location: string) => {
   window.dispatchEvent(new Event('device360-location-change'));
 };
 
+const toSlug = (value: string) => value.toLowerCase().replace(/\s+/g, '-');
+
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentLocation, setCurrentLocation] = useState('Bengaluru');
@@ -58,16 +60,22 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     };
   }, []);
 
+  const currentSlug = toSlug(currentLocation);
+  const homePath = currentSlug === 'bengaluru' ? '/' : `/${currentSlug}`;
+  const repairPath = currentSlug === 'bengaluru' ? '/repair' : `/${currentSlug}/repair`;
+
   const handleLocationClick = (loc: string) => {
+    const slug = toSlug(loc);
+
     setSelectedLocation(loc);
-    navigate(`/repair/${loc.toLowerCase().replace(/\s+/g, '-')}`);
     setMobileMenuOpen(false);
+
+    // Hard reload to the location home page first.
+    window.location.href = `/${slug}`;
   };
 
-  const navLocationLabel = currentLocation || 'Bengaluru';
-
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       <style>{`
         @keyframes device360-marquee {
           0% { transform: translateX(0%); }
@@ -114,13 +122,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </div>
 
-      {/* Nav — black, minimal, icon-only contact buttons */}
+      {/* Nav */}
       <nav className="sticky top-0 z-50 bg-black shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-
-            {/* Logo */}
-            <Link to="/" className="flex items-center shrink-0" data-testid="logo-link">
+            <Link to={homePath} className="flex items-center shrink-0" data-testid="logo-link">
               <img
                 src={logo}
                 alt="Device360"
@@ -128,9 +134,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               />
             </Link>
 
-            {/* Right — call icon + whatsapp icon + mobile hamburger */}
             <div className="flex items-center gap-2">
-              {/* Call icon */}
               <a
                 href="tel:+919876543210"
                 title="Call us"
@@ -140,7 +144,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <FiPhone className="w-5 h-5" />
               </a>
 
-              {/* WhatsApp icon */}
               <a
                 href="https://wa.me/919876543210"
                 target="_blank"
@@ -152,7 +155,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <FaWhatsapp className="w-5 h-5" />
               </a>
 
-              {/* Mobile hamburger */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="md:hidden flex items-center justify-center w-10 h-10 rounded-full border border-white/20 text-white hover:border-white/60 transition-all ml-1"
@@ -164,26 +166,25 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        {/* Mobile menu */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-white/10 bg-black" data-testid="mobile-menu">
             <div className="px-4 pt-3 pb-4 space-y-1">
               <Link
-                to="/"
+                to={homePath}
                 className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-gray-300 font-medium hover:bg-white/10 hover:text-white transition-all"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Home
               </Link>
               <Link
-                to="/repair"
+                to={repairPath}
                 className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-gray-300 font-medium hover:bg-white/10 hover:text-white transition-all"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Get a Quote
               </Link>
               <Link
-                to="/repair"
+                to={repairPath}
                 className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-gray-300 font-medium hover:bg-white/10 hover:text-white transition-all"
                 onClick={() => setMobileMenuOpen(false)}
               >
@@ -211,19 +212,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 ))}
               </div>
             </div>
-
-            
           </div>
         )}
       </nav>
 
-      <main>{children}</main>
+      <main data-scroll-container>{children}</main>
 
       {/* Footer */}
       <footer className="bg-gray-950 text-gray-400 pt-16 pb-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
-            {/* Brand */}
             <div className="lg:col-span-1">
               <div className="flex items-center gap-2 mb-4">
                 <img src={logo} alt="Device360" className="h-9 object-contain brightness-0 invert opacity-90" />
@@ -250,7 +248,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
             </div>
 
-            {/* Popular Locations */}
             <div>
               <h4 className="text-white font-semibold text-sm mb-4 flex items-center gap-2">
                 <MapPin className="w-3.5 h-3.5 text-blue-400" />
@@ -271,7 +268,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
             </div>
 
-            {/* Services */}
             <div>
               <h4 className="text-white font-semibold text-sm mb-4">Our Services</h4>
               <ul className="space-y-2">
@@ -286,7 +282,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   'iPad Repair',
                 ].map((s) => (
                   <li key={s}>
-                    <Link to="/repair" className="text-xs text-gray-500 hover:text-blue-400 transition-colors">
+                    <Link to={repairPath} className="text-xs text-gray-500 hover:text-blue-400 transition-colors">
                       {s}
                     </Link>
                   </li>
@@ -294,7 +290,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </ul>
             </div>
 
-            {/* Contact */}
             <div>
               <h4 className="text-white font-semibold text-sm mb-4">Contact Us</h4>
               <ul className="space-y-3">

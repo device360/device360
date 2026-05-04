@@ -1,6 +1,6 @@
 import './App.css';
 import { useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { Layout } from './components/Layout';
 import { HomePage } from './components/HomePage';
@@ -10,6 +10,11 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { Loader } from './components/Loader';
 import { AdminLogin } from './admin/AdminLogin';
 import { ProtectedRoute } from './components/ProtectedRoute';
+
+const LegacyRepairRedirect: React.FC = () => {
+  const { location } = useParams<{ location?: string }>();
+  return <Navigate to={location ? `/${location}/repair` : '/repair'} replace />;
+};
 
 function App() {
   const [loaded, setLoaded] = useState(false);
@@ -29,13 +34,14 @@ function App() {
           <Layout>
             <Routes>
               <Route path="/" element={<HomePage />} />
+              <Route path="/:location" element={<HomePage />} />
 
-              {/* Repair flow for default and location-based URLs */}
               <Route path="/repair" element={<RepairFlow />} />
-              <Route path="/repair/:location" element={<RepairFlow />} />
+              <Route path="/:location/repair" element={<RepairFlow />} />
+
+              <Route path="/repair/:location" element={<LegacyRepairRedirect />} />
 
               <Route path="/dashboard/:bookingId" element={<Dashboard />} />
-
               <Route path="/admin/login" element={<AdminLogin />} />
 
               <Route

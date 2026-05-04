@@ -17,16 +17,36 @@ import {
   Sparkles,
   Play,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { testimonials, brands } from '../data/mockData';
+
+const toPrettyLocation = (slug?: string) => {
+  if (!slug) return 'Bengaluru';
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const toSlug = (value: string) => value.toLowerCase().replace(/\s+/g, '-');
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { location } = useParams<{ location?: string }>();
   const [currentLocation, setCurrentLocation] = useState('Bengaluru');
 
   useEffect(() => {
     const syncLocation = () => {
+      if (location) {
+        const pretty = toPrettyLocation(location);
+        setCurrentLocation(pretty);
+        localStorage.setItem('device360Location', pretty);
+        window.dispatchEvent(new Event('device360-location-change'));
+        return;
+      }
+
       setCurrentLocation(localStorage.getItem('device360Location') || 'Bengaluru');
     };
 
@@ -38,7 +58,7 @@ export const HomePage: React.FC = () => {
       window.removeEventListener('storage', syncLocation);
       window.removeEventListener('device360-location-change', syncLocation as EventListener);
     };
-  }, []);
+  }, [location]);
 
   const usps = [
     { icon: Eye, title: 'Watch Repair LIVE', desc: 'Real-time video stream of your repair in progress' },
@@ -66,6 +86,15 @@ export const HomePage: React.FC = () => {
     'Jayanagar',
   ];
 
+  const orderedLocations = useMemo(() => {
+    const list = [currentLocation, ...popularLocations.filter((loc) => loc !== currentLocation)];
+    return list;
+  }, [currentLocation]);
+
+  const currentSlug = toSlug(currentLocation);
+  const homePath = currentSlug === 'bengaluru' ? '/' : `/${currentSlug}`;
+  const repairPath = currentSlug === 'bengaluru' ? '/repair' : `/${currentSlug}/repair`;
+
   return (
     <div className="overflow-x-hidden bg-white">
       {/* Hero */}
@@ -77,7 +106,6 @@ export const HomePage: React.FC = () => {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left content */}
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
@@ -96,11 +124,15 @@ export const HomePage: React.FC = () => {
 
               <div className="space-y-4">
                 <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-gray-950 leading-none tracking-tight">
-                  REPAIR.
+                  REPAIR
                   <br />
-                  <span className="text-blue-600">RENEW.</span>
+                  <span className="text-blue-600">RENEW</span>
                   <br />
-                  RELAX.
+                  RELAX
+                  <br />
+                  <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-extrabold rounded-xl shadow-[0_6px_20px_rgba(37,99,235,0.35)]">
+                    {currentLocation}
+                  </span>
                 </h1>
                 <p className="text-base sm:text-lg text-gray-500 font-medium max-w-xl">
                   India&apos;s most trusted <span className="text-gray-900 font-bold">360° live repair experience</span>.
@@ -108,7 +140,17 @@ export const HomePage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4 shadow-sm">
+                <div className="flex items-center gap-2 text-sm font-semibold text-blue-700">
+                  <MapPin className="w-4 h-4 text-blue-500" />
+                  Currently serving {currentLocation}
+                </div>
+                <p className="mt-1 text-sm text-gray-600">
+                  Free pickup and doorstep repair support tailored for your area.
+                </p>
+              </div>
+
+              {/* <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
                 {[
                   { value: '42 min', label: 'Avg. repair time' },
                   { value: '6 mo', label: 'Warranty' },
@@ -119,7 +161,7 @@ export const HomePage: React.FC = () => {
                     <p className="mt-1 text-xs text-gray-500">{item.label}</p>
                   </div>
                 ))}
-              </div>
+              </div> */}
 
               <ul className="space-y-2">
                 {[
@@ -137,7 +179,7 @@ export const HomePage: React.FC = () => {
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={() => navigate('/repair')}
+                  onClick={() => navigate(repairPath)}
                   className="group inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-blue-600 text-white font-bold text-base hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 hover:shadow-xl hover:-translate-y-0.5"
                   data-testid="check-price-button"
                 >
@@ -156,16 +198,18 @@ export const HomePage: React.FC = () => {
               <div className="flex items-center gap-2 flex-wrap pt-1">
                 <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                 <span className="text-xs text-gray-400">Serving:</span>
-                <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-full shadow-sm">
+                <span className="text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-1 rounded-full shadow-sm">
                   {currentLocation}
                 </span>
-                <button onClick={() => navigate('/repair')} className="text-xs text-blue-600 font-medium hover:underline">
+                <button
+                  onClick={() => navigate(repairPath)}
+                  className="text-xs text-blue-600 font-medium hover:underline"
+                >
                   +more
                 </button>
               </div>
             </motion.div>
 
-            {/* Right video */}
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -230,7 +274,11 @@ export const HomePage: React.FC = () => {
           <p className="text-center text-xs font-semibold text-gray-400 uppercase tracking-widest mb-6">We repair all major brands</p>
           <div className="flex flex-wrap items-center justify-center gap-8">
             {brands.map((b) => (
-              <span key={b.id} className="text-xl font-bold text-gray-300 hover:text-gray-500 transition-colors cursor-default" data-testid={`brand-logo-${b.id}`}>
+              <span
+                key={b.id}
+                className="text-xl font-bold text-gray-300 hover:text-gray-500 transition-colors cursor-default"
+                data-testid={`brand-logo-${b.id}`}
+              >
                 {b.name}
               </span>
             ))}
@@ -292,7 +340,9 @@ export const HomePage: React.FC = () => {
                   className="relative p-6 rounded-2xl bg-white border border-gray-100 text-center shadow-sm hover:shadow-md hover:border-blue-100 transition-all"
                   data-testid={`how-it-works-step-${s.n}`}
                 >
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow">{s.n}</div>
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow">
+                    {s.n}
+                  </div>
                   <Icon className="w-7 h-7 mx-auto mb-3 text-blue-500 mt-2" />
                   <h4 className="font-bold text-gray-900 text-sm mb-1">{s.title}</h4>
                   <p className="text-xs text-gray-500">{s.desc}</p>
@@ -308,14 +358,20 @@ export const HomePage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">Where We Serve</p>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Repair near you</h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+              Repair near {currentLocation}
+            </h2>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            {popularLocations.map((loc) => (
+            {orderedLocations.map((loc) => (
               <button
                 key={loc}
-                onClick={() => navigate(`/repair/${loc.toLowerCase().replace(/\s+/g, '-')}`)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-gray-50 border border-gray-200 text-sm font-medium text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all"
+                onClick={() => navigate(`/${toSlug(loc)}`)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-sm font-medium transition-all ${
+                  loc === currentLocation
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-md shadow-blue-200'
+                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700'
+                }`}
               >
                 <MapPin className="w-3 h-3" /> {loc}
               </button>
@@ -366,11 +422,13 @@ export const HomePage: React.FC = () => {
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-sm font-medium mb-6">
             <Zap className="w-3.5 h-3.5" /> Most repairs done same day
           </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4 tracking-tight">Ready to get your phone fixed?</h2>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4 tracking-tight">
+            Ready to get your phone fixed in {currentLocation}?
+          </h2>
           <p className="text-blue-100 text-lg mb-8">Check your price in 30 seconds. No commitments.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
-              onClick={() => navigate('/repair')}
+              onClick={() => navigate(repairPath)}
               className="px-10 py-4 rounded-2xl bg-white text-blue-700 font-bold text-lg hover:bg-blue-50 transition-all shadow-xl hover:-translate-y-0.5"
               data-testid="get-quote-button"
             >

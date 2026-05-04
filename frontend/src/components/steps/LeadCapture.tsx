@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { PhoneStep } from './contact/PhoneStep';
 import { OTPStep } from './contact/OTPStep';
-import { NameStep, AddressStep, TimeSlotStep } from './contact/ContactSteps';
+import { NameStep, AddressStep, DeclarationStep } from './contact/ContactSteps';
 import type { StepProps, AddressFields } from '../../types';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
-const STEP_LABELS = ['Phone', 'Verify OTP', 'Your Name', 'Address', 'Time Slot'];
+const STEP_LABELS = ['Phone', 'Verify OTP', 'Your Name', 'Address', 'Declaration'];
 
 export const LeadCapture: React.FC<StepProps> = ({
   formData,
@@ -14,27 +14,32 @@ export const LeadCapture: React.FC<StepProps> = ({
   goToNextStep,
   goToPreviousStep,
 }) => {
-  const [step, setStep]           = useState(1);
-  const [phone, setPhone]         = useState(formData.phone || '');
-  const [name, setName]           = useState(formData.name || '');
-  const [address, setAddress]     = useState<AddressFields>({
-    doorNumber: '', street: '', floor: '', landmark: '', city: '', pincode: '',
+  const [step, setStep] = useState(1);
+  const [phone, setPhone] = useState(formData.phone || '');
+  const [name, setName] = useState(formData.name || '');
+  const [address, setAddress] = useState<AddressFields>({
+    doorNumber: '',
+    street: '',
+    floor: '',
+    landmark: '',
+    city: '',
+    pincode: '',
   });
-  const [timeSlot, setTimeSlot]   = useState(formData.timeSlot || '');
   const [submitting, setSubmitting] = useState(false);
 
   const back = () => (step > 1 ? setStep((s) => s - 1) : goToPreviousStep());
 
-  const submitBooking = async (slot: string) => {
+  const submitBooking = async () => {
     setSubmitting(true);
+
     try {
       const addrStr = `${address.doorNumber}, ${address.floor ? address.floor + ', ' : ''}${address.street}, ${address.landmark ? address.landmark + ', ' : ''}${address.city} - ${address.pincode}`;
+
       const body = {
         name,
         phone,
         address: addrStr,
         addressDetails: address,
-        timeSlot: slot,
         brand: formData.brand?.name,
         model: formData.model,
         issue: formData.issue?.name,
@@ -43,17 +48,27 @@ export const LeadCapture: React.FC<StepProps> = ({
         isLiveRepair: formData.issue?.liveRepair || false,
         doorstepPickup: true,
       };
+
       const res = await fetch(`${BACKEND}/api/leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+
       if (!res.ok) {
         const d = await res.json();
         throw new Error(d.error || 'Failed');
       }
+
       const data = await res.json();
-      updateFormData({ phone, name, address, timeSlot: slot, bookingId: data.bookingId });
+
+      updateFormData({
+        phone,
+        name,
+        address,
+        bookingId: data.bookingId,
+      });
+
       goToNextStep();
     } catch (err: any) {
       alert(err.message || 'Failed to submit booking. Please try again.');
@@ -62,27 +77,29 @@ export const LeadCapture: React.FC<StepProps> = ({
     }
   };
 
-  if (submitting) return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-xl p-8">
-      <div className="flex flex-col items-center justify-center py-12 space-y-5">
-        <div className="relative">
-          <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center shadow-xl shadow-blue-200">
-            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24">
-              <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M12 6v6l4 2"/>
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-            </svg>
+  if (submitting) {
+    return (
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl p-8">
+        <div className="flex flex-col items-center justify-center py-12 space-y-5">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center shadow-xl shadow-blue-200">
+              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24">
+                <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" d="M12 6v6l4 2" />
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+              </svg>
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border-2 border-blue-100 flex items-center justify-center">
+              <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
           </div>
-          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border-2 border-blue-100 flex items-center justify-center">
-            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="text-center">
+            <p className="font-black text-gray-900 text-lg">Confirming your booking…</p>
+            <p className="text-gray-400 text-sm mt-1">Please wait a moment</p>
           </div>
-        </div>
-        <div className="text-center">
-          <p className="font-black text-gray-900 text-lg">Confirming your booking…</p>
-          <p className="text-gray-400 text-sm mt-1">Please wait a moment</p>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -103,8 +120,8 @@ export const LeadCapture: React.FC<StepProps> = ({
                 i + 1 < step
                   ? 'bg-blue-600'
                   : i + 1 === step
-                  ? 'bg-blue-400'
-                  : 'bg-gray-100'
+                    ? 'bg-blue-400'
+                    : 'bg-gray-100'
               }`}
             />
           ))}
@@ -116,36 +133,48 @@ export const LeadCapture: React.FC<StepProps> = ({
         {step === 1 && (
           <PhoneStep
             phone={phone}
-            onSubmit={(p) => { setPhone(p); setStep(2); }}
+            onSubmit={(p) => {
+              setPhone(p);
+              setStep(2);
+            }}
             goBack={goToPreviousStep}
           />
         )}
+
         {step === 2 && (
           <OTPStep
             phone={phone}
             onVerify={() => setStep(3)}
-            goBack={back}
+            goBack={goToPreviousStep}
           />
         )}
+
         {step === 3 && (
           <NameStep
             name={name}
-            onSubmit={(n) => { setName(n); setStep(4); }}
+            onSubmit={(n) => {
+              setName(n);
+              setStep(4);
+            }}
             goBack={back}
           />
         )}
+
         {step === 4 && (
           <AddressStep
             address={address}
-            onSubmit={(a) => { setAddress(a); setStep(5); }}
+            onSubmit={(a) => {
+              setAddress(a);
+              setStep(5);
+            }}
             goBack={back}
           />
         )}
+
         {step === 5 && (
-          <TimeSlotStep
-            timeSlot={timeSlot}
-            onSubmit={(s) => { setTimeSlot(s); submitBooking(s); }}
+          <DeclarationStep
             goBack={back}
+            onSubmit={submitBooking}
           />
         )}
       </div>

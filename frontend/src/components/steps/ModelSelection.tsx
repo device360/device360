@@ -375,7 +375,25 @@ export const ModelSelection: React.FC<StepProps> = ({
     const el = sectionRef.current;
     if (!el) return;
 
-    const id = window.requestAnimationFrame(() => {
+    const timeoutId = window.setTimeout(() => {
+      const scrollContainer =
+        (el.closest('[data-scroll-container]') as HTMLElement | null) ||
+        (document.scrollingElement as HTMLElement | null) ||
+        document.documentElement;
+
+      if (scrollContainer instanceof HTMLElement) {
+        const targetTop =
+          el.getBoundingClientRect().top +
+          scrollContainer.scrollTop -
+          scrollContainer.clientHeight * 0.18;
+
+        scrollContainer.scrollTo({
+          top: Math.max(0, targetTop),
+          behavior: 'smooth',
+        });
+        return;
+      }
+
       const targetY =
         el.getBoundingClientRect().top +
         window.scrollY -
@@ -385,9 +403,9 @@ export const ModelSelection: React.FC<StepProps> = ({
         top: Math.max(0, targetY),
         behavior: 'smooth',
       });
-    });
+    }, 250);
 
-    return () => window.cancelAnimationFrame(id);
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   const currentBrand = brands.find((b) => b.id === formData.brand?.id);
@@ -479,7 +497,11 @@ export const ModelSelection: React.FC<StepProps> = ({
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className={`text-[15px] sm:text-base font-semibold leading-tight truncate ${isSelected ? 'text-blue-800' : 'text-gray-900'}`}>
+                      <p
+                        className={`text-[15px] sm:text-base font-semibold leading-tight truncate ${
+                          isSelected ? 'text-blue-800' : 'text-gray-900'
+                        }`}
+                      >
                         {model}
                       </p>
                       <p className="mt-0.5 text-xs sm:text-sm text-gray-500 truncate">

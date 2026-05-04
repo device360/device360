@@ -77,7 +77,6 @@ export const RepairFlow: React.FC = () => {
     localStorage.setItem(STORAGE_KEY, resolvedLocation);
     window.dispatchEvent(new Event('device360-location-change'));
 
-    // Reset the flow when a location route is used so the page never appears blank.
     setCurrentStep(1);
     setFormData((prev) => ({
       ...prev,
@@ -116,12 +115,10 @@ export const RepairFlow: React.FC = () => {
   };
 
   const CurrentStep = STEP_COMPONENTS[currentStep];
-  const showStickyPrice = currentStep >= 4 && currentStep < 6 && formData.pricing;
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 pb-32">
       <div className="max-w-2xl mx-auto px-4 sm:px-6">
-        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-center gap-2 mb-3 text-xs font-semibold text-blue-700">
             <MapPin className="w-3.5 h-3.5 text-blue-500" />
@@ -132,7 +129,6 @@ export const RepairFlow: React.FC = () => {
             Book a Repair
           </h1>
 
-          {/* Step indicators */}
           <div className="flex items-center">
             {STEPS.map((step, index) => (
               <div key={step.id} className="flex items-center flex-1">
@@ -158,7 +154,6 @@ export const RepairFlow: React.FC = () => {
           </div>
         </div>
 
-        {/* Step content */}
         <AnimatePresence mode="wait">
           <motion.div
             key={`${currentStep}-${selectedLocation}`}
@@ -176,29 +171,6 @@ export const RepairFlow: React.FC = () => {
           </motion.div>
         </AnimatePresence>
       </div>
-
-      {/* Sticky price bar */}
-      {/* {showStickyPrice && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-xl">
-          <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs text-gray-400 font-medium">Your quote</p>
-              <div className="flex items-baseline gap-2">
-                {formData.pricing?.oldPrice && (
-                  <span className="text-base text-gray-400 line-through">₹{formData.pricing.oldPrice}</span>
-                )}
-                <span className="text-2xl font-extrabold text-gray-900">₹{formData.pricing?.price}</span>
-              </div>
-            </div>
-            <button
-              onClick={goToNextStep}
-              className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all shadow-md flex items-center gap-2"
-            >
-              {currentStep === 4 ? 'Book Now' : 'Continue'} →
-            </button>
-          </div>
-        </div>
-      )} */}
     </div>
   );
 };
