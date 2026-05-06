@@ -10,6 +10,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { Loader } from './components/Loader';
 import { AdminLogin } from './admin/AdminLogin';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { LandingPage } from './components/LandingPage';
 
 const LegacyRepairRedirect: React.FC = () => {
   const { location } = useParams<{ location?: string }>();
@@ -33,7 +34,7 @@ function App() {
         <BrowserRouter>
           <Layout>
             <Routes>
-              <Route path="/" element={<HomePage />} />
+              <Route path="/" element={<LandingPage />} />
               <Route path="/:location" element={<HomePage />} />
 
               <Route path="/repair" element={<RepairFlow />} />
