@@ -44,9 +44,9 @@ function App() {
             <Routes>
               <Route path="/" element={<LandingPage />} />
 
-              <Route path="/mobile-repair-:location" element={<HomePage />} />
-              <Route path="/mobile-repair-:location" element={<HomePage />} />
-              <Route path="/mobile-repair-:location/repair" element={<RepairFlow />} />
+              <Route path="/:location" element={<HomePage />} />
+
+              <Route path="/repair" element={<RepairFlow />} />
               <Route path="/:location/repair" element={<RepairFlow />} />
               <Route path="/repair/:location" element={<LegacyRepairRedirect />} />
 

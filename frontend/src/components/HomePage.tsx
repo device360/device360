@@ -82,6 +82,41 @@ const SERVE_LOCATIONS = [
   { name: 'Hoskote', slug: 'hoskote' },
 ];
 
+const FAQ_ITEMS = [
+  {
+    q: 'Which locations do you serve?',
+    a: 'We currently serve Bengaluru locations like Indiranagar, Koramangala, Whitefield, HSR Layout, Marathahalli, Jayanagar, Electronic City, Sarjapur Road, and more.',
+  },
+  {
+    q: 'Do you provide free pickup and delivery?',
+    a: 'Yes. Pickup and delivery are free for most bookings within our service area.',
+  },
+  {
+    q: 'How fast can my device be repaired?',
+    a: 'Many common issues can be completed the same day, and some repairs may be done in around 60 minutes depending on the issue and model.',
+  },
+  {
+    q: 'Can I watch the repair live?',
+    a: 'Yes. For supported repairs, you can watch the service through live video tracking while the technician works on your device.',
+  },
+  {
+    q: 'Do you use original parts?',
+    a: 'We use quality-tested parts and aim to provide the best replacement option for your device and budget. Availability can vary by model.',
+  },
+  {
+    q: 'Is there a warranty on repairs?',
+    a: 'Yes. We provide a warranty on repairs, and the duration depends on the service type. In many cases, it is up to 6 months.',
+  },
+  {
+    q: 'How do I book a repair?',
+    a: 'Choose your location, select your phone brand and model, pick the issue, view the price, and complete your booking in a few simple steps.',
+  },
+  {
+    q: 'Can I track my booking after confirmation?',
+    a: 'Yes. You can track your booking status using your dashboard/booking link after confirmation.',
+  },
+];
+
 const Counter: React.FC<{ to: number; suffix?: string; prefix?: string }> = ({
   to,
   suffix = '',
@@ -138,6 +173,71 @@ const SectionTitle = ({
     </p>
   </div>
 );
+
+const FAQSection = () => {
+  const [openIndex, setOpenIndex] = useState<number | null>(0);
+
+  return (
+    <section className="relative py-24 sm:py-28 bg-gradient-to-b from-white to-slate-50">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <SectionTitle
+          eyebrow="FAQ"
+          title="Frequently Asked Questions"
+          description="Quick answers to the most common questions about booking, repair, pricing, warranty, and service coverage."
+        />
+
+        <div className="mt-10 space-y-4">
+          {FAQ_ITEMS.map((item, index) => {
+            const isOpen = openIndex === index;
+
+            return (
+              <motion.div
+                key={item.q}
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.35, delay: index * 0.04 }}
+                className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm"
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenIndex(isOpen ? null : index)}
+                  className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left sm:px-6"
+                >
+                  <span className="text-sm sm:text-base font-bold text-gray-900">
+                    {item.q}
+                  </span>
+
+                  <ChevronRight
+                    className={`h-5 w-5 shrink-0 text-blue-600 transition-transform duration-300 ${
+                      isOpen ? 'rotate-90' : ''
+                    }`}
+                  />
+                </button>
+
+                <motion.div
+                  initial={false}
+                  animate={{
+                    height: isOpen ? 'auto' : 0,
+                    opacity: isOpen ? 1 : 0,
+                  }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-5 pb-5 sm:px-6 sm:pb-6">
+                    <p className="text-sm leading-7 text-gray-600">
+                      {item.a}
+                    </p>
+                  </div>
+                </motion.div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+};
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -312,7 +412,7 @@ export const HomePage: React.FC = () => {
                   ))}
                 </motion.div>
 
-                <motion.div variants={fadeUp} className="pt-1">
+                {/* <motion.div variants={fadeUp} className="pt-1">
                   <div className="rounded-[28px] border border-white/10 bg-white/10 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <div className="flex h-14 w-full items-center gap-3 rounded-2xl bg-white/7 px-4 text-white ring-1 ring-white/8">
@@ -346,7 +446,7 @@ export const HomePage: React.FC = () => {
                       </button>
                     ))}
                   </div>
-                </motion.div>
+                </motion.div> */}
 
                 <motion.div variants={fadeUp} className="flex flex-col gap-3 sm:flex-row">
                   <button
@@ -608,7 +708,7 @@ export const HomePage: React.FC = () => {
               viewport={{ once: true }}
               className="grid grid-cols-1 gap-5 md:grid-cols-3"
             >
-              {testimonials.map((t, i) => (
+              {testimonials.map((t) => (
                 <motion.div
                   key={t.id}
                   variants={fadeUp}
@@ -638,6 +738,8 @@ export const HomePage: React.FC = () => {
             </motion.div>
           </div>
         </section>
+
+        <FAQSection />
 
         {/* CTA */}
         <section className="relative overflow-hidden bg-[#05080f] py-16 text-white">
