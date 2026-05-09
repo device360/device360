@@ -1,7 +1,14 @@
 import './App.css';
 import { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useParams,
+} from 'react-router-dom';
 import { Toaster } from 'sonner';
+
 import { Layout } from './components/Layout';
 import { HomePage } from './components/HomePage';
 import { RepairFlow } from './components/RepairFlow';
@@ -14,6 +21,7 @@ import { LandingPage } from './components/LandingPage';
 
 const LegacyRepairRedirect: React.FC = () => {
   const { location } = useParams<{ location?: string }>();
+
   return <Navigate to={location ? `/${location}/repair` : '/repair'} replace />;
 };
 
@@ -35,11 +43,11 @@ function App() {
           <Layout>
             <Routes>
               <Route path="/" element={<LandingPage />} />
-              <Route path="/:location" element={<HomePage />} />
 
-              <Route path="/repair" element={<RepairFlow />} />
+              <Route path="/mobile-repair-:location" element={<HomePage />} />
+              <Route path="/mobile-repair-:location" element={<HomePage />} />
+              <Route path="/mobile-repair-:location/repair" element={<RepairFlow />} />
               <Route path="/:location/repair" element={<RepairFlow />} />
-
               <Route path="/repair/:location" element={<LegacyRepairRedirect />} />
 
               <Route path="/dashboard/:bookingId" element={<Dashboard />} />

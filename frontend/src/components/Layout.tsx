@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, MapPin, Phone, Mail, Clock, Instagram, Twitter, Facebook, Youtube } from 'lucide-react';
+import {
+  Menu,
+  X,
+  MapPin,
+  Phone,
+  Mail,
+  Clock,
+  Instagram,
+  Twitter,
+  Facebook,
+  Youtube,
+} from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { FiPhone } from 'react-icons/fi';
 import logo from '../assets/logo3.png';
@@ -40,6 +51,16 @@ const setSelectedLocation = (location: string) => {
 
 const toSlug = (value: string) => value.toLowerCase().replace(/\s+/g, '-');
 
+const getLocationBasePath = (location: string) => {
+  const slug = toSlug(location);
+  return slug === 'bengaluru' ? '/' : `/mobile-repair-${slug}`;
+};
+
+const getRepairPath = (location: string) => {
+  const slug = toSlug(location);
+  return slug === 'bengaluru' ? '/repair' : `/mobile-repair-${slug}/repair`;
+};
+
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentLocation, setCurrentLocation] = useState('Bengaluru');
@@ -60,18 +81,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     };
   }, []);
 
-  const currentSlug = toSlug(currentLocation);
-  const homePath = currentSlug === 'bengaluru' ? '/' : `/${currentSlug}`;
-  const repairPath = currentSlug === 'bengaluru' ? '/repair' : `/${currentSlug}/repair`;
+  const homePath = getLocationBasePath(currentLocation);
+  const repairPath = getRepairPath(currentLocation);
 
   const handleLocationClick = (loc: string) => {
-    const slug = toSlug(loc);
+    const path = getLocationBasePath(loc);
 
     setSelectedLocation(loc);
     setMobileMenuOpen(false);
 
-    // Hard reload to the location home page first.
-    window.location.href = `/${slug}`;
+    window.location.href = path;
   };
 
   return (
@@ -219,7 +238,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <img src={logo} alt="Device360" className="h-9 object-contain brightness-0 invert opacity-90" />
               </div>
               <p className="text-gray-500 text-sm leading-relaxed mb-5">
-                India's first mobile repair service with <span className="text-white font-medium">live video tracking</span>. Transparent pricing, free pickup &amp; delivery, 6-month warranty.
+                India's first mobile repair service with <span className="text-white font-medium">live video tracking</span>.
+                Transparent pricing, free pickup &amp; delivery, 6-month warranty.
               </p>
               <div className="flex items-center gap-3">
                 {[
@@ -288,25 +308,31 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <li>
                   <a href="tel:+919876543210" className="flex items-start gap-3 group">
                     <Phone className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
-                    <span className="text-xs text-gray-500 group-hover:text-blue-400 transition-colors">+91 98765 43210</span>
+                    <span className="text-xs text-gray-500 group-hover:text-blue-400 transition-colors">
+                      +91 98765 43210
+                    </span>
                   </a>
                 </li>
                 <li>
                   <a href="mailto:support@device360.com" className="flex items-start gap-3 group">
                     <Mail className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
-                    <span className="text-xs text-gray-500 group-hover:text-blue-400 transition-colors">support@device360.com</span>
+                    <span className="text-xs text-gray-500 group-hover:text-blue-400 transition-colors">
+                      support@device360.com
+                    </span>
                   </a>
                 </li>
                 <li className="flex items-start gap-3">
                   <MapPin className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
                   <span className="text-xs text-gray-500 leading-relaxed">
-                    Indiranagar, Bengaluru,<br />Karnataka – 560038
+                    Indiranagar, Bengaluru,<br />
+                    Karnataka – 560038
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Clock className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
                   <span className="text-xs text-gray-500 leading-relaxed">
-                    Mon–Sat: 9 AM – 9 PM<br />Sunday: 10 AM – 6 PM
+                    Mon–Sat: 9 AM – 9 PM<br />
+                    Sunday: 10 AM – 6 PM
                   </span>
                 </li>
               </ul>
@@ -324,9 +350,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           <div className="border-t border-gray-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-gray-600">
-              © 2026 Device360. All rights reserved.
-            </p>
+            <p className="text-xs text-gray-600">© 2026 Device360. All rights reserved.</p>
             <div className="flex items-center gap-5">
               {['Privacy Policy', 'Terms of Service', 'Refund Policy'].map((l) => (
                 <Link key={l} to="#" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">
