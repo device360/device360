@@ -21,7 +21,7 @@ import {
   Video,
   Zap,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { testimonials } from '../data/mockData';
 
@@ -85,36 +85,36 @@ const SERVE_LOCATIONS = [
 
 const FAQ_ITEMS = [
   {
-    q: 'Which locations do you serve?',
-    a: 'We currently serve Bengaluru locations like Indiranagar, Koramangala, Whitefield, HSR Layout, Marathahalli, Jayanagar, Electronic City, Sarjapur Road, and more.',
+    q: '1. Which locations do you serve?',
+    a: 'We currently serve selected areas across Bangalore.',
   },
   {
-    q: 'Do you provide free pickup and delivery?',
-    a: 'Yes. Pickup and delivery are free for most bookings within our service area.',
+    q: '2. Do you provide free pickup and delivery?',
+    a: 'Yes, free pickup & delivery is available in supported locations.',
   },
   {
-    q: 'How fast can my device be repaired?',
-    a: 'Many common issues can be completed the same day, and some repairs may be done in around 60 minutes depending on the issue and model.',
+    q: '3. How fast can my device be repaired?',
+    a: 'Most repairs are completed within 60 minutes.',
   },
   {
-    q: 'Can I watch the repair live?',
-    a: 'Yes. For supported repairs, you can watch the service through live video tracking while the technician works on your device.',
+    q: '4. Can I watch the repair live?',
+    a: 'Yes, you can track your repair through live video support.',
   },
   {
-    q: 'Do you use original parts?',
-    a: 'We use quality-tested parts and aim to provide the best replacement option for your device and budget. Availability can vary by model.',
+    q: '5. Do you use original parts?',
+    a: 'We use high-quality genuine replacement parts.',
   },
   {
-    q: 'Is there a warranty on repairs?',
-    a: 'Yes. We provide a warranty on repairs, and the duration depends on the service type. In many cases, it is up to 6 months.',
+    q: '6. Is there a warranty on repairs?',
+    a: 'Yes, all eligible repairs come with up to 6 months warranty.',
   },
   {
-    q: 'How do I book a repair?',
-    a: 'Choose your location, select your phone brand and model, pick the issue, view the price, and complete your booking in a few simple steps.',
+    q: '7. How do I book a repair?',
+    a: 'Select your phone model, check the price, and confirm your booking.',
   },
   {
-    q: 'Can I track my booking after confirmation?',
-    a: 'Yes. You can track your booking status using your dashboard/booking link after confirmation.',
+    q: '8. Can I track my booking after confirmation?',
+    a: 'Yes, you’ll receive live updates after your booking is confirmed.',
   },
 ];
 
@@ -143,7 +143,13 @@ const Counter: React.FC<{ to: number; suffix?: string; prefix?: string }> = ({
     return () => window.clearInterval(id);
   }, [inView, to]);
 
-  return <span ref={ref}>{prefix}{val.toLocaleString()}{suffix}</span>;
+  return (
+    <span ref={ref}>
+      {prefix}
+      {val.toLocaleString()}
+      {suffix}
+    </span>
+  );
 };
 
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
@@ -161,15 +167,15 @@ const SectionTitle = ({
   title: string;
   description: string;
 }) => (
-  <div className="text-center mb-12">
+  <div className="mb-12 text-center">
     <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-300">
       <Sparkles className="h-3.5 w-3.5" />
       {eyebrow}
     </span>
-    <h2 className="mt-4 text-3xl sm:text-4xl font-black tracking-tight text-gray-950">
+    <h2 className="mt-4 text-3xl font-black tracking-tight text-gray-950 sm:text-4xl">
       {title}
     </h2>
-    <p className="mx-auto mt-3 max-w-2xl text-sm sm:text-base leading-7 text-gray-500">
+    <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-gray-500 sm:text-base">
       {description}
     </p>
   </div>
@@ -179,8 +185,8 @@ const FAQSection = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
-    <section className="relative py-24 sm:py-28 bg-gradient-to-b from-white to-slate-50">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="relative bg-gradient-to-b from-white to-slate-50 py-24 sm:py-28">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
         <SectionTitle
           eyebrow="FAQ"
           title="Frequently Asked Questions"
@@ -205,7 +211,7 @@ const FAQSection = () => {
                   onClick={() => setOpenIndex(isOpen ? null : index)}
                   className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left sm:px-6"
                 >
-                  <span className="text-sm sm:text-base font-bold text-gray-900">
+                  <span className="text-sm font-bold text-gray-900 sm:text-base">
                     {item.q}
                   </span>
 
@@ -245,7 +251,7 @@ const AnimatedHeroBullet = ({
   text,
   index,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   text: string;
   index: number;
 }) => {
@@ -349,8 +355,10 @@ export const HomePage: React.FC = () => {
   }, [location]);
 
   useEffect(() => {
-    document.title = 'Mobile Repair in Bengaluru | Live Repair, Free Pickup & WhatsApp Booking';
-    const description = 'Book mobile repair in Bengaluru with live repair video, free pickup, same-day service, and WhatsApp booking. Search your model, check price instantly, and choose your location.';
+    document.title =
+      'Mobile Repair in Bengaluru | Live Repair, Free Pickup & WhatsApp Booking';
+    const description =
+      'Book mobile repair in Bengaluru with live repair video, free pickup, same-day service, and WhatsApp booking. Search your model, check price instantly, and choose your location.';
 
     const existing = document.querySelector('meta[name="description"]');
     if (existing) {
@@ -369,7 +377,9 @@ export const HomePage: React.FC = () => {
 
   const filteredModels = useMemo(() => {
     if (!search.trim()) return POPULAR_MODELS;
-    return POPULAR_MODELS.filter((model) => model.toLowerCase().includes(search.toLowerCase()));
+    return POPULAR_MODELS.filter((model) =>
+      model.toLowerCase().includes(search.toLowerCase()),
+    );
   }, [search]);
 
   const steps = [
@@ -389,12 +399,75 @@ export const HomePage: React.FC = () => {
   ];
 
   return (
-    <div className="overflow-x-hidden bg-white text-gray-900" style={{ fontFamily: "'Outfit', 'DM Sans', system-ui, sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=DM+Sans:wght@400;500;600&display=swap');`}</style>
+    <div
+      className="overflow-x-hidden bg-white text-gray-900"
+      style={{ fontFamily: "'Outfit', 'DM Sans', system-ui, sans-serif" }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=DM+Sans:wght@400;500;600&display=swap');
+
+        .button {
+          margin: 0;
+          height: auto;
+          background: transparent;
+          padding: 0;
+          border: none;
+          cursor: pointer;
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          text-decoration: none;
+          text-transform: uppercase;
+          letter-spacing: 2px;
+          font-family: inherit;
+          --border-right: 3px;
+          --text-stroke-color: rgba(255, 255, 255, 0.72);
+          --animation-color: #ff3b3b;
+          --fs-size: 1rem;
+        }
+
+        .button .actual-text {
+          position: relative;
+          z-index: 1;
+          display: inline-block;
+          color: rgba(255, 255, 255, 0.94);
+          font-size: var(--fs-size);
+          line-height: 1;
+          white-space: nowrap;
+        }
+
+        .button .hover-text {
+          position: absolute;
+          box-sizing: border-box;
+          color: var(--animation-color);
+          width: 0%;
+          inset: 0;
+          border-right: var(--border-right) solid var(--animation-color);
+          overflow: hidden;
+          transition: 0.5s;
+          -webkit-text-stroke: 1px var(--animation-color);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          white-space: nowrap;
+          font-size: var(--fs-size);
+          line-height: 1;
+          text-shadow: 0 0 14px rgba(255, 59, 59, 0.55), 0 0 28px rgba(255, 59, 59, 0.25);
+        }
+
+        .button:hover .hover-text {
+          width: 100%;
+          filter: drop-shadow(0 0 23px var(--animation-color));
+        }
+
+        .button:hover .actual-text {
+          opacity: 0.35;
+        }
+      `}</style>
 
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#05080f]/80 backdrop-blur-xl">
-
-
         {/* <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <button onClick={() => navigate('/')} className="flex items-center gap-3 text-left" aria-label="Go to home">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white shadow-lg shadow-cyan-500/10">
@@ -438,7 +511,7 @@ export const HomePage: React.FC = () => {
 
       <main>
         {/* HERO */}
-        <section className="relative isolate min-h-screen sm:min-h-[92vh] overflow-hidden bg-[#05080f]">
+        <section className="relative isolate min-h-screen overflow-hidden bg-[#05080f] sm:min-h-[92vh]">
           <div className="absolute inset-0">
             <video
               autoPlay
@@ -456,97 +529,68 @@ export const HomePage: React.FC = () => {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:72px_72px] opacity-30" />
           </div>
 
-          <div className="relative z-10 mx-auto flex min-h-screen sm:min-h-[92vh] max-w-7xl items-start sm:items-center px-4 pt-16 pb-24 sm:py-12 sm:px-6 lg:px-8 lg:py-16">
+          <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl items-start px-4 pb-24 pt-16 sm:min-h-[92vh] sm:px-6 sm:py-12 lg:px-8 lg:py-16">
             <div className="grid w-full grid-cols-1 gap-10 lg:grid-cols-12 lg:items-center">
               <motion.div
                 variants={stagger}
                 initial="hidden"
                 animate="show"
-                className="lg:col-span-7 space-y-6 sm:space-y-7"
+                className="space-y-6 sm:space-y-7 lg:col-span-7"
               >
                 <motion.div variants={fadeUp}>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-[11px] sm:text-xs font-bold text-amber-300 shadow-lg shadow-amber-500/5">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-[11px] font-bold text-amber-300 shadow-lg shadow-amber-500/5 sm:text-xs">
                     <Star className="h-3.5 w-3.5 fill-amber-300" />
                     4.9 Rating · 1,000+ Repairs Done
                   </div>
                 </motion.div>
 
                 <motion.div variants={fadeUp} className="max-w-4xl space-y-3">
-                  <h1 className="text-[2.8rem] leading-[0.9] font-black tracking-[-0.05em] text-white sm:text-6xl lg:text-[5.9rem]">
-                    <span className="block">REPAIR</span>
+                  <h1 className="text-[2.8rem] font-black leading-[0.9] tracking-[-0.05em] text-white sm:text-6xl lg:text-[5.9rem]">
+                    <span className="block">PREMIUM PHONE REPAIR</span>
                     <span className="block bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(34,211,238,0.18)]">
-                      RENEW
+                      DONE
                     </span>
-                    <span className="block">RELAX</span>
+                    <span className="block">TRANSPARENTLY</span>
                   </h1>
                   <p className="max-w-2xl text-sm leading-7 text-white/75 sm:text-base sm:leading-8">
-                    Search your phone model instantly, check price, and book a premium repair with live video support, free pickup, and same-day service.
+                    premium mobile repair with live video support, free pickup, and same-day service.
                   </p>
                 </motion.div>
 
-                <motion.div variants={fadeUp} className="grid gap-2 grid-cols-1 sm:grid-cols-2">
+                <motion.div variants={fadeUp} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {heroBullets.map(({ icon: Icon, text }, index) => (
                     <AnimatedHeroBullet key={text} icon={Icon} text={text} index={index} />
                   ))}
                 </motion.div>
 
-                {/* <motion.div variants={fadeUp} className="pt-1">
-                  <div className="rounded-[28px] border border-white/10 bg-white/10 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <div className="flex h-14 w-full items-center gap-3 rounded-2xl bg-white/7 px-4 text-white ring-1 ring-white/8">
-                        <Search className="h-4 w-4 shrink-0 text-cyan-300" />
-                        <input
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          placeholder="Search your phone model..."
-                          className="h-full w-full bg-transparent text-sm outline-none placeholder:text-white/35"
-                          aria-label="Search your phone model"
-                        />
-                      </div>
-                      <button
-                        onClick={() => navigate(repairPath)}
-                        className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 font-bold text-black transition-transform hover:scale-[1.02]"
-                      >
-                        Check Price
-                        <ArrowRight className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {filteredModels.slice(0, 6).map((model) => (
-                      <button
-                        key={model}
-                        onClick={() => navigate(repairPath)}
-                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-semibold text-white/80 transition-all hover:border-cyan-400/40 hover:text-cyan-200"
-                      >
-                        {model}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div> */}
-
-                <motion.div variants={fadeUp} className="flex flex-col gap-3 sm:flex-row pt-1">
+                <motion.div variants={fadeUp} className="flex flex-col gap-3 pt-1 sm:flex-row">
                   <button
                     onClick={() => navigate(repairPath)}
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-4 text-base font-black text-black shadow-[0_18px_40px_rgba(56,189,248,0.22)] transition-transform hover:scale-[1.02]"
+                    className="button inline-flex w-full items-center justify-center rounded-2xl border border-red-500/20 bg-white/5 px-6 py-4 text-base font-black text-white shadow-[0_18px_40px_rgba(255,59,59,0.18)] transition-transform hover:scale-[1.02] sm:w-auto"
+                    data-text="Check Instant Price"
                     data-testid="check-price-button"
+                    style={{ ['--animation-color' as any]: '#ff3b3b' }}
                   >
-                    <Video className="h-4 w-4" />
-                    Check Price + Live Video
-                    <ArrowRight className="h-4 w-4" />
+                    <Video className="h-4 w-4 shrink-0 text-white/90" />
+                    <span className="relative inline-flex items-center justify-center overflow-hidden">
+                      <span className="actual-text">Check Instant Price</span>
+                      <span aria-hidden="true" className="hover-text">
+                        Check Instant Price
+                      </span>
+                    </span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-white/90" />
                   </button>
+
                   <a
                     href={whatsappUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-6 py-4 text-base font-semibold text-emerald-300 transition-all hover:bg-emerald-500/15"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-6 py-4 text-base font-semibold text-emerald-300 transition-all hover:bg-emerald-500/15 sm:w-auto"
                   >
                     <MessageCircle className="h-4 w-4" />
                     WhatsApp Now
                   </a>
                 </motion.div>
-
               </motion.div>
 
               <motion.div
@@ -559,11 +603,15 @@ export const HomePage: React.FC = () => {
                   <div className="absolute inset-0 -z-10 rounded-[36px] bg-gradient-to-br from-cyan-500/20 to-blue-600/20 blur-3xl" />
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-[28px] border border-white/10 bg-white/10 p-5 text-white backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.35)] sm:col-span-2">
+                    <div className="rounded-[28px] border border-white/10 bg-white/10 p-5 text-white shadow-[0_24px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl sm:col-span-2">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Instant pricing</p>
-                          <h3 className="mt-2 text-xl font-black tracking-tight sm:text-2xl">Select model → see price instantly</h3>
+                          <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">
+                            Instant pricing
+                          </p>
+                          <h3 className="mt-2 text-xl font-black tracking-tight sm:text-2xl">
+                            Select model → see price instantly
+                          </h3>
                         </div>
                         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-cyan-300">
                           <Smartphone className="h-5 w-5" />
@@ -576,8 +624,12 @@ export const HomePage: React.FC = () => {
                               <Play className="h-4 w-4 fill-current" />
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase tracking-[0.22em] text-white/40">Live repair stream</p>
-                              <p className="text-sm font-semibold text-white/85">Real-time video on every booking</p>
+                              <p className="text-[10px] uppercase tracking-[0.22em] text-white/40">
+                                Live repair stream
+                              </p>
+                              <p className="text-sm font-semibold text-white/85">
+                                Real-time video on every booking
+                              </p>
                             </div>
                           </div>
                           <div className="rounded-full border border-red-400/20 bg-red-500/10 px-3 py-1.5 text-[11px] font-bold text-red-300">
@@ -591,11 +643,16 @@ export const HomePage: React.FC = () => {
                       { label: '60 min', sub: 'Avg repair', icon: Clock },
                       { label: '4.9★', sub: 'Rating', icon: Star },
                     ].map(({ label, sub, icon: Icon }) => (
-                      <div key={label} className="rounded-[24px] border border-white/10 bg-white/8 p-5 text-white backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)]">
+                      <div
+                        key={label}
+                        className="rounded-[24px] border border-white/10 bg-white/8 p-5 text-white shadow-[0_20px_50px_rgba(0,0,0,0.25)] backdrop-blur-2xl"
+                      >
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-3xl font-black tracking-tight">{label}</p>
-                            <p className="mt-1 text-xs uppercase tracking-[0.22em] text-white/40">{sub}</p>
+                            <p className="mt-1 text-xs uppercase tracking-[0.22em] text-white/40">
+                              {sub}
+                            </p>
                           </div>
                           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-cyan-300">
                             <Icon className="h-5 w-5" />
@@ -623,7 +680,9 @@ export const HomePage: React.FC = () => {
                 <p className="text-xl font-black text-gray-950 sm:text-3xl">
                   <Counter to={to} suffix={suffix} />
                 </p>
-                <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.2em] text-gray-500">{label}</p>
+                <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.2em] text-gray-500">
+                  {label}
+                </p>
               </div>
             ))}
           </div>
@@ -656,7 +715,7 @@ export const HomePage: React.FC = () => {
                     <h3 className="mt-4 text-sm font-bold">{s.title}</h3>
                     <p className="mt-1 text-xs leading-6 text-white/50">{s.desc}</p>
                     {i < steps.length - 1 && (
-                      <div className="hidden lg:block absolute top-1/2 -right-2.5 h-0.5 w-5 bg-gradient-to-r from-cyan-400/40 to-transparent" />
+                      <div className="absolute -right-2.5 top-1/2 hidden h-0.5 w-5 bg-gradient-to-r from-cyan-400/40 to-transparent lg:block" />
                     )}
                   </motion.div>
                 );
@@ -701,8 +760,14 @@ export const HomePage: React.FC = () => {
                   }}
                   className="group relative overflow-hidden rounded-[22px] border border-gray-200 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl"
                 >
-                  <div className="absolute inset-x-0 top-0 h-1 opacity-0 transition-opacity group-hover:opacity-100" style={{ background: brand.color }} />
-                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl text-sm font-black text-white" style={{ background: brand.color }}>
+                  <div
+                    className="absolute inset-x-0 top-0 h-1 opacity-0 transition-opacity group-hover:opacity-100"
+                    style={{ background: brand.color }}
+                  />
+                  <div
+                    className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl text-sm font-black text-white"
+                    style={{ background: brand.color }}
+                  >
                     {brand.name.slice(0, 1)}
                   </div>
                   <p className="text-sm font-bold text-gray-950">{brand.name}</p>
@@ -748,10 +813,22 @@ export const HomePage: React.FC = () => {
                         : 'border-gray-200 bg-white text-gray-700 hover:border-blue-200 hover:text-blue-700'
                     }`}
                   >
-                    <MapPin className={`h-4 w-4 shrink-0 ${isActive ? 'text-blue-200' : 'text-gray-400 group-hover:text-blue-500'}`} />
+                    <MapPin
+                      className={`h-4 w-4 shrink-0 ${
+                        isActive
+                          ? 'text-blue-200'
+                          : 'text-gray-400 group-hover:text-blue-500'
+                      }`}
+                    />
                     <div className="min-w-0">
                       <p className="font-bold leading-tight">{loc.name}</p>
-                      <p className={`text-[10px] font-medium ${isActive ? 'text-blue-200' : 'text-gray-400'}`}>Mobile Repair</p>
+                      <p
+                        className={`text-[10px] font-medium ${
+                          isActive ? 'text-blue-200' : 'text-gray-400'
+                        }`}
+                      >
+                        Mobile Repair
+                      </p>
                     </div>
                     {isActive && <CheckCircle className="ml-auto h-4 w-4 text-white" />}
                   </motion.a>
@@ -760,7 +837,10 @@ export const HomePage: React.FC = () => {
             </motion.div>
             <p className="mt-8 text-center text-xs text-gray-500">
               Don&apos;t see your area?{' '}
-              <button onClick={() => navigate(repairPath)} className="font-semibold text-blue-600 hover:underline">
+              <button
+                onClick={() => navigate(repairPath)}
+                className="font-semibold text-blue-600 hover:underline"
+              >
                 We likely serve it — check now →
               </button>
             </p>
@@ -776,7 +856,9 @@ export const HomePage: React.FC = () => {
               description="A premium repair experience that customers actually recommend."
             />
             <div className="mb-8 flex items-center justify-center gap-2 text-amber-400">
-              {[...Array(5)].map((_, i) => <Star key={i} className="h-5 w-5 fill-current" />)}
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className="h-5 w-5 fill-current" />
+              ))}
               <span className="ml-1 text-lg font-black text-gray-950">4.9</span>
               <span className="text-sm text-gray-500">/ 5 · 2,847 reviews</span>
             </div>
@@ -799,11 +881,17 @@ export const HomePage: React.FC = () => {
                   </p>
                   <p className="mb-5 text-sm leading-6 text-gray-500">{t.text}</p>
                   <div className="flex items-center gap-3 border-t border-gray-100 pt-4">
-                    <img src={t.image} alt={t.name} className="h-11 w-11 rounded-full object-cover ring-2 ring-blue-100" />
+                    <img
+                      src={t.image}
+                      alt={t.name}
+                      className="h-11 w-11 rounded-full object-cover ring-2 ring-blue-100"
+                    />
                     <div>
                       <p className="text-sm font-bold text-gray-950">{t.name}</p>
                       <div className="mt-0.5 flex items-center gap-1">
-                        {[...Array(t.rating)].map((_, j) => <Star key={j} className="h-3 w-3 fill-amber-400 text-amber-400" />)}
+                        {[...Array(t.rating)].map((_, j) => (
+                          <Star key={j} className="h-3 w-3 fill-amber-400 text-amber-400" />
+                        ))}
                         <span className="ml-1 text-xs text-gray-400">Verified repair</span>
                       </div>
                     </div>
@@ -821,9 +909,9 @@ export const HomePage: React.FC = () => {
         <FAQSection />
 
         {/* CTA */}
-        <section className="relative overflow-hidden bg-[#05080f] py-12 sm:py-16 text-white">
+        <section className="relative overflow-hidden bg-[#05080f] py-12 text-white sm:py-16">
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:60px_60px]" />
-          <div className="absolute top-0 left-1/2 h-[280px] w-[900px] -translate-x-1/2 rounded-full bg-blue-600/10 blur-[90px]" />
+          <div className="absolute left-1/2 top-0 h-[280px] w-[900px] -translate-x-1/2 rounded-full bg-blue-600/10 blur-[90px]" />
 
           <div className="relative mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-300">
@@ -838,7 +926,7 @@ export const HomePage: React.FC = () => {
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <button
                 onClick={() => navigate(repairPath)}
-                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-8 py-4 text-base font-black text-black transition-transform hover:scale-[1.02]"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-8 py-4 text-base font-black text-black transition-transform hover:scale-[1.02] sm:w-auto"
               >
                 Get Instant Quote →
               </button>
@@ -846,7 +934,7 @@ export const HomePage: React.FC = () => {
                 href={whatsappUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-8 py-4 text-base font-semibold text-emerald-300 transition-all hover:bg-emerald-500/15"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-8 py-4 text-base font-semibold text-emerald-300 transition-all hover:bg-emerald-500/15 sm:w-auto"
               >
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp Support
