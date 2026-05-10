@@ -355,7 +355,7 @@ export const HomePage: React.FC = () => {
 
       <main>
         {/* HERO */}
-        <section className="relative isolate min-h-[92vh] overflow-hidden bg-[#05080f]">
+        <section className="relative isolate min-h-screen sm:min-h-[92vh] overflow-hidden bg-[#05080f]">
           <div className="absolute inset-0">
             <video
               autoPlay
@@ -373,7 +373,7 @@ export const HomePage: React.FC = () => {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:72px_72px] opacity-30" />
           </div>
 
-          <div className="relative z-10 mx-auto flex min-h-[92vh] max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
+          <div className="relative z-10 mx-auto flex min-h-screen sm:min-h-[92vh] max-w-7xl items-start sm:items-center px-4 pt-16 pb-24 sm:py-12 sm:px-6 lg:px-8 lg:py-16">
             <div className="grid w-full grid-cols-1 gap-10 lg:grid-cols-12 lg:items-center">
               <motion.div
                 variants={stagger}
@@ -389,7 +389,7 @@ export const HomePage: React.FC = () => {
                 </motion.div>
 
                 <motion.div variants={fadeUp} className="max-w-4xl space-y-3">
-                  <h1 className="text-5xl font-black leading-[0.9] tracking-[-0.05em] text-white sm:text-6xl lg:text-[5.9rem]">
+                  <h1 className="text-[2.8rem] leading-[0.9] font-black tracking-[-0.05em] text-white sm:text-6xl lg:text-[5.9rem]">
                     <span className="block">REPAIR</span>
                     <span className="block bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(34,211,238,0.18)]">
                       RENEW
@@ -401,7 +401,7 @@ export const HomePage: React.FC = () => {
                   </p>
                 </motion.div>
 
-                <motion.div variants={fadeUp} className="grid gap-3 sm:grid-cols-2">
+                <motion.div variants={fadeUp} className="grid gap-2 grid-cols-1 sm:grid-cols-2">
                   {heroBullets.map(({ icon: Icon, text }) => (
                     <div key={text} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
                       <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-cyan-300">
@@ -448,10 +448,10 @@ export const HomePage: React.FC = () => {
                   </div>
                 </motion.div> */}
 
-                <motion.div variants={fadeUp} className="flex flex-col gap-3 sm:flex-row">
+                <motion.div variants={fadeUp} className="flex flex-col gap-3 sm:flex-row pt-1">
                   <button
                     onClick={() => navigate(repairPath)}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-4 text-base font-black text-black shadow-[0_18px_40px_rgba(56,189,248,0.22)] transition-transform hover:scale-[1.02]"
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-4 text-base font-black text-black shadow-[0_18px_40px_rgba(56,189,248,0.22)] transition-transform hover:scale-[1.02]"
                     data-testid="check-price-button"
                   >
                     <Video className="h-4 w-4" />
@@ -462,19 +462,20 @@ export const HomePage: React.FC = () => {
                     href={whatsappUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-6 py-4 text-base font-semibold text-emerald-300 transition-all hover:bg-emerald-500/15"
+                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-6 py-4 text-base font-semibold text-emerald-300 transition-all hover:bg-emerald-500/15"
                   >
                     <MessageCircle className="h-4 w-4" />
                     WhatsApp Now
                   </a>
                 </motion.div>
+
               </motion.div>
 
               <motion.div
                 initial={{ opacity: 0, y: 18, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                className="lg:col-span-5"
+                className="hidden lg:block lg:col-span-5"
               >
                 <div className="relative mx-auto max-w-xl">
                   <div className="absolute inset-0 -z-10 rounded-[36px] bg-gradient-to-br from-cyan-500/20 to-blue-600/20 blur-3xl" />
@@ -533,7 +534,7 @@ export const HomePage: React.FC = () => {
 
         {/* TRUST STRIP */}
         <section className="border-y border-gray-200 bg-white py-7">
-          <div className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-4 text-center sm:grid-cols-4 sm:px-6 lg:px-8">
+          <div className="mx-auto grid max-w-6xl grid-cols-2 gap-3 px-4 text-center sm:grid-cols-4 sm:px-6 lg:px-8">
             {[
               { to: 50000, suffix: '+', label: 'Repairs Completed' },
               { to: 4, suffix: '.9★', label: 'Average Rating' },
@@ -541,7 +542,7 @@ export const HomePage: React.FC = () => {
               { to: 60, suffix: ' min', label: 'Average Repair Time' },
             ].map(({ to, suffix, label }) => (
               <div key={label} className="rounded-2xl bg-gray-50 px-4 py-4">
-                <p className="text-2xl font-black text-gray-950 sm:text-3xl">
+                <p className="text-xl font-black text-gray-950 sm:text-3xl">
                   <Counter to={to} suffix={suffix} />
                 </p>
                 <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.2em] text-gray-500">{label}</p>
@@ -558,7 +559,7 @@ export const HomePage: React.FC = () => {
               title="Select Model → See Price Instantly"
               description="From booking to delivery — transparent, fast, and streamed live."
             />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {steps.map((s, i) => {
                 const Icon = s.icon;
                 return (
@@ -742,7 +743,7 @@ export const HomePage: React.FC = () => {
         <FAQSection />
 
         {/* CTA */}
-        <section className="relative overflow-hidden bg-[#05080f] py-16 text-white">
+        <section className="relative overflow-hidden bg-[#05080f] py-12 sm:py-16 text-white">
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:60px_60px]" />
           <div className="absolute top-0 left-1/2 h-[280px] w-[900px] -translate-x-1/2 rounded-full bg-blue-600/10 blur-[90px]" />
 
@@ -750,7 +751,7 @@ export const HomePage: React.FC = () => {
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-300">
               <Zap className="h-3.5 w-3.5" /> Instant Pricing · Same Day Repair
             </div>
-            <h2 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">
+            <h2 className="mt-5 text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">
               Fix Your Phone Today.
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/70 sm:text-lg">
@@ -759,7 +760,7 @@ export const HomePage: React.FC = () => {
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <button
                 onClick={() => navigate(repairPath)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-8 py-4 text-base font-black text-black transition-transform hover:scale-[1.02]"
+                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-8 py-4 text-base font-black text-black transition-transform hover:scale-[1.02]"
               >
                 Get Instant Quote →
               </button>
@@ -767,13 +768,13 @@ export const HomePage: React.FC = () => {
                 href={whatsappUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-8 py-4 text-base font-semibold text-emerald-300 transition-all hover:bg-emerald-500/15"
+                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-8 py-4 text-base font-semibold text-emerald-300 transition-all hover:bg-emerald-500/15"
               >
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp Support
               </a>
             </div>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs font-medium text-white/45">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs font-medium text-white/45">
               {[
                 '6-Month Warranty',
                 'Free Pickup & Delivery',

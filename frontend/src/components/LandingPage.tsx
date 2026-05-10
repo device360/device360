@@ -289,7 +289,7 @@ export const LandingPage = () => {
       {/* Grid overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:60px_60px]" />
 
-      <div className="relative z-10 mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-12">
+      <div className="relative z-10 mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-10 lg:px-12">
         {/* Hero */}
         <div className="grid items-center gap-14 lg:grid-cols-2">
           {/* Left Content */}
@@ -305,7 +305,7 @@ export const LandingPage = () => {
               </span>
             </div>
 
-            <h1 className="text-5xl font-black leading-tight tracking-tight sm:text-6xl lg:text-7xl">
+            <h1 className="text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-7xl">
               Premium
               <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
                 {' '}
@@ -323,21 +323,27 @@ export const LandingPage = () => {
             <div className="relative mt-10">
               <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-cyan-500 to-blue-600 opacity-30 blur-xl" />
 
-              <div className="relative flex items-center rounded-3xl border border-white/10 bg-white/10 p-2 backdrop-blur-2xl">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
-                  <Search className="h-5 w-5 text-cyan-300" />
+              <div className="relative flex flex-col sm:flex-row items-center rounded-3xl border border-white/10 bg-white/10 p-2 backdrop-blur-2xl gap-2 sm:gap-0">
+                <div className="flex w-full sm:w-auto h-12 sm:h-14 items-center rounded-2xl bg-white/10 px-3 sm:px-0 sm:w-14 sm:justify-center">
+                  <Search className="h-5 w-5 text-cyan-300 shrink-0" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search your phone model..."
+                    className="h-full flex-1 bg-transparent px-3 text-white placeholder:text-gray-400 outline-none sm:hidden"
+                  />
                 </div>
 
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search your phone model..."
-                  className="h-14 flex-1 bg-transparent px-4 text-white placeholder:text-gray-400 outline-none"
+                  className="hidden sm:block h-14 flex-1 bg-transparent px-4 text-white placeholder:text-gray-400 outline-none"
                 />
 
                 <button
                   onClick={() => navigate('/repair')}
-                  className="flex h-14 items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 font-bold transition-all hover:scale-105"
+                  className="flex w-full sm:w-auto h-12 sm:h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 font-bold transition-all hover:scale-105"
                 >
                   Search
                   <ArrowRight className="h-4 w-4" />
@@ -345,10 +351,10 @@ export const LandingPage = () => {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3">
               <button
                 onClick={openLocationFlow}
-                className="flex h-14 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-6 font-bold text-white backdrop-blur-xl transition-all hover:bg-white/15"
+                className="flex h-12 sm:h-14 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-5 font-bold text-white backdrop-blur-xl transition-all hover:bg-white/15 text-sm sm:text-base"
               >
                 {isLocating ? (
                   <>
@@ -365,7 +371,7 @@ export const LandingPage = () => {
 
               <button
                 onClick={handleRepairClick}
-                className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 font-bold transition-all hover:scale-105"
+                className="flex h-12 sm:h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 font-bold transition-all hover:scale-105 text-sm sm:text-base"
               >
                 Repair
                 <ArrowRight className="h-4 w-4" />
@@ -373,7 +379,7 @@ export const LandingPage = () => {
 
               <button
                 onClick={() => navigate('/repair')}
-                className="flex h-14 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-6 font-bold text-white/90 backdrop-blur-xl transition-all hover:bg-white/10"
+                className="flex h-12 sm:h-14 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 font-bold text-white/90 backdrop-blur-xl transition-all hover:bg-white/10 text-sm sm:text-base"
               >
                 Check Price
                 <ArrowRight className="h-4 w-4" />
@@ -381,7 +387,7 @@ export const LandingPage = () => {
             </div>
 
             {/* Stats */}
-            <div className="mt-10 grid grid-cols-3 gap-4">
+            <div className="mt-8 sm:mt-10 grid grid-cols-3 gap-2 sm:gap-4">
               {[
                 {
                   icon: Clock3,
@@ -405,26 +411,26 @@ export const LandingPage = () => {
                   <motion.div
                     key={index}
                     whileHover={{ y: -4 }}
-                    className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl"
+                    className="rounded-2xl sm:rounded-3xl border border-white/10 bg-white/5 p-3 sm:p-5 backdrop-blur-xl"
                   >
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/10">
-                      <Icon className="h-6 w-6 text-cyan-300" />
+                    <div className="mb-2 sm:mb-4 flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-xl sm:rounded-2xl bg-cyan-500/10">
+                      <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-cyan-300" />
                     </div>
 
-                    <p className="text-lg font-black">{item.label}</p>
-                    <p className="text-sm text-gray-400">{item.sub}</p>
+                    <p className="text-base sm:text-lg font-black">{item.label}</p>
+                    <p className="text-xs sm:text-sm text-gray-400">{item.sub}</p>
                   </motion.div>
                 );
               })}
             </div>
           </motion.div>
 
-          {/* Right Side */}
+          {/* Right Side - hidden on mobile */}
           <motion.div
             initial={{ opacity: 0, x: 40 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7 }}
-            className="relative"
+            className="relative hidden lg:block"
           >
             <div className="grid grid-cols-2 gap-5">
               {filteredPhones.map((phone, index) => (
@@ -489,7 +495,7 @@ export const LandingPage = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
           >
             <div
               className="absolute inset-0 bg-black/75 backdrop-blur-sm"
@@ -501,7 +507,7 @@ export const LandingPage = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.98 }}
               transition={{ duration: 0.25 }}
-              className="relative w-full max-w-2xl overflow-hidden rounded-[32px] border border-white/10 bg-[#0b1020] shadow-2xl shadow-black/40"
+              className="relative w-full sm:max-w-2xl overflow-hidden rounded-t-[32px] sm:rounded-[32px] border border-white/10 bg-[#0b1020] shadow-2xl shadow-black/40"
             >
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 sm:px-6">
                 <div>
