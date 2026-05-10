@@ -5,6 +5,7 @@ import {
   CheckCircle,
   ChevronRight,
   Clock,
+  Wallet,
   MessageCircle,
   MapPin,
   Package,
@@ -239,6 +240,87 @@ const FAQSection = () => {
   );
 };
 
+const AnimatedHeroBullet = ({
+  icon: Icon,
+  text,
+  index,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  text: string;
+  index: number;
+}) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.5, delay: index * 0.08 }}
+      whileHover={{ scale: 1.02 }}
+      className="group relative overflow-hidden rounded-2xl border border-red-500/15 bg-white/5 p-4 backdrop-blur-xl"
+    >
+      <motion.div
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        animate={{
+          backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
+        }}
+        transition={{
+          duration: 4.5,
+          repeat: Infinity,
+          ease: 'linear',
+        }}
+        style={{
+          backgroundImage:
+            'linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.04) 45%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.04) 55%, transparent 100%)',
+          backgroundSize: '200% 100%',
+        }}
+      />
+
+      <div className="relative flex items-start gap-3">
+        <motion.div
+          animate={{
+            y: [0, -4, 0],
+            scale: [1, 1.06, 1],
+            boxShadow: [
+              '0 0 0px rgba(239,68,68,0.20), 0 0 0px rgba(244,63,94,0.0)',
+              '0 0 24px rgba(239,68,68,0.60), 0 0 42px rgba(244,63,94,0.28)',
+              '0 0 0px rgba(239,68,68,0.20), 0 0 0px rgba(244,63,94,0.0)',
+            ],
+          }}
+          transition={{
+            duration: 2.2,
+            repeat: Infinity,
+            ease: 'easeInOut',
+            delay: index * 0.18,
+          }}
+          className="relative mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 via-rose-500 to-orange-500 text-white shadow-lg shadow-red-500/25"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+            className="absolute inset-0 rounded-xl border border-white/20"
+          />
+          <motion.div
+            animate={{
+              opacity: [0.15, 0.45, 0.15],
+              scale: [1, 1.08, 1],
+            }}
+            transition={{
+              duration: 2.4,
+              repeat: Infinity,
+              ease: 'easeInOut',
+              delay: index * 0.12,
+            }}
+            className="absolute inset-0 rounded-xl bg-white/10"
+          />
+          <Icon className="relative z-10 h-4 w-4" />
+        </motion.div>
+
+        <p className="text-sm leading-6 text-white/80">{text}</p>
+      </div>
+    </motion.div>
+  );
+};
+
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { location } = useParams<{ location?: string }>();
@@ -295,7 +377,8 @@ export const HomePage: React.FC = () => {
     { n: 2, icon: Package, title: 'Free Pickup', desc: 'We collect from your door' },
     { n: 3, icon: Video, title: 'Watch LIVE', desc: 'Real-time video stream' },
     { n: 4, icon: ThumbsUp, title: 'Quality Check', desc: 'Tested before dispatch' },
-    { n: 5, icon: Truck, title: 'Delivered', desc: 'Device back to you' },
+    { n: 5, icon: Wallet, title: 'Complete Payment', desc: 'Pay the service amount securely' },
+    { n: 6, icon: Truck, title: 'Delivered', desc: 'Device back to you' },
   ];
 
   const heroBullets = [
@@ -402,13 +485,8 @@ export const HomePage: React.FC = () => {
                 </motion.div>
 
                 <motion.div variants={fadeUp} className="grid gap-2 grid-cols-1 sm:grid-cols-2">
-                  {heroBullets.map(({ icon: Icon, text }) => (
-                    <div key={text} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-cyan-300">
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <p className="text-sm leading-6 text-white/80">{text}</p>
-                    </div>
+                  {heroBullets.map(({ icon: Icon, text }, index) => (
+                    <AnimatedHeroBullet key={text} icon={Icon} text={text} index={index} />
                   ))}
                 </motion.div>
 
