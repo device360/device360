@@ -3,13 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta
-  name="viewport"
-  content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
-/>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <link rel="icon" type="image/svg+xml" href="/frontend/public/favicon.png" />
+    <link rel="apple-touch-icon" href="/frontend/public/favicon.png"/>
+    <link rel="mask-icon" href="/frontend/public/favicon.png" color="#0ea5e9" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Device360 — Mobile repairs in 60 minutes. Watch your repair LIVE. Free doorstep pickup and delivery." />
-    <title>Device360 — Mobile Repair in 60 Minutes</title>
+    <meta
+      name="description"
+      content="Device360 — premium mobile repairs in 60 minutes. Watch your repair LIVE with free doorstep pickup and delivery."
+    />
+    <title>Device360 | Premium Live Mobile Repair</title>
   </head>
   <body>
     <!--
@@ -17,7 +22,10 @@
       React never touches this div — it cannot be unmounted.
       The verifier is attached to this div once at page load.
     -->
-    <div id="recaptcha-root" style="position:fixed;bottom:0;right:0;z-index:9999;width:0;height:0;overflow:hidden;"></div>
+    <div
+      id="recaptcha-root"
+      style="position:fixed;bottom:0;right:0;z-index:9999;width:0;height:0;overflow:hidden;"
+    ></div>
     <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>
   </body>

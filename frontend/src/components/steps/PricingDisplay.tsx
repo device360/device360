@@ -1,6 +1,14 @@
 import { motion } from 'framer-motion';
-import { ChevronLeft, CheckCircle, Video, Zap, Shield, Truck, Star } from 'lucide-react';
+import { ChevronLeft, CheckCircle, Video, Shield, Truck, Star } from 'lucide-react';
+import { useState } from 'react';
 import type { StepProps } from '../../types';
+
+const generateReferenceCode = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const timePart = Date.now().toString(36).toUpperCase().slice(-3);
+  const randomPart = Array.from({ length: 3 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return `${timePart}${randomPart}`.slice(0, 6);
+};
 
 export const PricingDisplay: React.FC<StepProps> = ({
   formData,
@@ -10,6 +18,7 @@ export const PricingDisplay: React.FC<StepProps> = ({
   const { brand, model, pricing, issue } = formData;
   const isLive = issue?.liveRepair;
   const savings = pricing?.oldPrice ? pricing.oldPrice - pricing.price : 0;
+  const [referenceCode] = useState(() => generateReferenceCode());
 
   return (
     <div className="space-y-4">
@@ -21,6 +30,22 @@ export const PricingDisplay: React.FC<StepProps> = ({
         </div>
         <h2 className="text-2xl font-black text-gray-900 tracking-tight">Your Repair Quote</h2>
         <p className="text-sm text-gray-400 mt-1">Transparent pricing, no hidden charges</p>
+      </div>
+
+      {/* Reference code */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Reference ID</p>
+            <p className="mt-1 text-lg font-black tracking-[0.25em] text-gray-900">
+              {referenceCode}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-blue-50 px-4 py-3 text-right border border-blue-100">
+            <p className="text-[11px] font-semibold text-blue-600">6-digit alphanumeric</p>
+            <p className="text-xs text-blue-500 mt-0.5">Unique for this quote</p>
+          </div>
+        </div>
       </div>
 
       {/* ── Price hero card ───────────────────────────────────────── */}
@@ -87,19 +112,17 @@ export const PricingDisplay: React.FC<StepProps> = ({
         </div>
       </div>
 
-
       {/* ── Included benefits ─────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         <p className="text-sm font-black text-gray-900 mb-4">What's Included</p>
         <div className="grid grid-cols-1 gap-3">
           {[
-            { icon: Shield,    text: '6-month warranty on all repairs',         color: 'text-blue-600',   bg: 'bg-blue-50'   },
-            { icon: CheckCircle,text: 'Genuine OEM parts guaranteed',           color: 'text-green-600',  bg: 'bg-green-50'  },
-            { icon: Truck,      text: 'Free doorstep pickup & delivery',        color: 'text-violet-600', bg: 'bg-violet-50' },
+            { icon: Shield, text: '6-month warranty on all repairs', color: 'text-blue-600', bg: 'bg-blue-50' },
+            { icon: CheckCircle, text: 'Genuine OEM parts guaranteed', color: 'text-green-600', bg: 'bg-green-50' },
+            { icon: Truck, text: 'Free doorstep pickup & delivery', color: 'text-violet-600', bg: 'bg-violet-50' },
             ...(isLive
               ? [{ icon: Video, text: 'Real-time live video tracking included', color: 'text-green-600', bg: 'bg-green-50' }]
-              : []
-            ),
+              : []),
           ].map(({ icon: Icon, text, color, bg }) => (
             <div key={text} className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>

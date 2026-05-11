@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Clock3, ShieldCheck, Sparkles, Video, Zap, CheckCircle2 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -124,13 +124,15 @@ const IssueRow: React.FC<{
     >
       <div className="flex items-center gap-4 min-w-0">
         <div className="relative shrink-0">
-          <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center shadow-sm ${
-            isSelected
-              ? isLive
-                ? 'bg-red-500 border-red-200'
-                : 'bg-blue-600 border-blue-200'
-              : 'bg-white border-gray-200'
-          }`}>
+          <div
+            className={`w-14 h-14 rounded-2xl border flex items-center justify-center shadow-sm ${
+              isSelected
+                ? isLive
+                  ? 'bg-red-500 border-red-200'
+                  : 'bg-blue-600 border-blue-200'
+                : 'bg-white border-gray-200'
+            }`}
+          >
             {Icon ? (
               <Icon className={`w-6 h-6 ${isSelected ? 'text-white' : 'text-gray-500'}`} />
             ) : (
@@ -145,9 +147,11 @@ const IssueRow: React.FC<{
           )}
 
           {isSelected && (
-            <div className={`absolute -bottom-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-md ${
-              isLive ? 'bg-red-500' : 'bg-blue-600'
-            }`}>
+            <div
+              className={`absolute -bottom-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-md ${
+                isLive ? 'bg-red-500' : 'bg-blue-600'
+              }`}
+            >
               <CheckCircle2 className="w-3.5 h-3.5 text-white" />
             </div>
           )}
@@ -156,9 +160,11 @@ const IssueRow: React.FC<{
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className={`text-[15px] sm:text-base font-black leading-tight truncate ${
-                isSelected ? (isLive ? 'text-red-900' : 'text-blue-900') : 'text-gray-950'
-              }`}>
+              <p
+                className={`text-[15px] sm:text-base font-black leading-tight truncate ${
+                  isSelected ? (isLive ? 'text-red-900' : 'text-blue-900') : 'text-gray-950'
+                }`}
+              >
                 {issue.name}
               </p>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs text-gray-500">
@@ -180,7 +186,11 @@ const IssueRow: React.FC<{
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 {strikePrice && <span className="text-xs text-gray-400 line-through">{strikePrice}</span>}
-                {priceLabel && <span className={`text-2xl font-black leading-none ${isLive ? 'text-red-700' : 'text-gray-950'}`}>{priceLabel}</span>}
+                {priceLabel && (
+                  <span className={`text-2xl font-black leading-none ${isLive ? 'text-red-700' : 'text-gray-950'}`}>
+                    {priceLabel}
+                  </span>
+                )}
               </div>
               <div className="mt-1 flex items-center gap-1.5 text-[11px] text-gray-500">
                 <ShieldCheck className="w-3.5 h-3.5" /> 6 months warranty
@@ -213,6 +223,8 @@ export const IssueSelection: React.FC<StepProps> = ({
   goToPreviousStep,
 }) => {
   const [selectedIssues, setSelectedIssues] = useState<Issue[]>(formData.issue ? [formData.issue] : []);
+  const actionsRef = useRef<HTMLDivElement | null>(null);
+  const prevSelectedCountRef = useRef(selectedIssues.length);
 
   const liveIssues = issues.filter((i) => i.category === 'live');
   const otherIssues = issues.filter((i) => i.category === 'other');
@@ -261,6 +273,22 @@ export const IssueSelection: React.FC<StepProps> = ({
 
   const totalPrice = selectedPricingDetails.reduce((sum, item) => sum + item.price, 0);
   const totalOldPrice = selectedPricingDetails.reduce((sum, item) => sum + item.oldPrice, 0);
+
+  useEffect(() => {
+    const wasEmpty = prevSelectedCountRef.current === 0;
+    const nowHasSelection = selectedIssues.length > 0;
+
+    if (wasEmpty && nowHasSelection) {
+      requestAnimationFrame(() => {
+        actionsRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      });
+    }
+
+    prevSelectedCountRef.current = selectedIssues.length;
+  }, [selectedIssues.length]);
 
   const handleToggle = (issue: Issue) => {
     setSelectedIssues((prev) => {
@@ -470,9 +498,7 @@ export const IssueSelection: React.FC<StepProps> = ({
                     {formatMoney(totalPrice) || '₹0'}
                   </p>
                   {totalOldPrice > totalPrice && (
-                    <p className="text-[11px] text-gray-500 line-through">
-                      {formatMoney(totalOldPrice)}
-                    </p>
+                    <p className="text-[11px] text-gray-500 line-through">{formatMoney(totalOldPrice)}</p>
                   )}
                 </div>
               </div>
@@ -481,7 +507,7 @@ export const IssueSelection: React.FC<StepProps> = ({
         </AnimatePresence>
 
         {/* Actions */}
-        <div className="flex gap-3 pt-1">
+        <div ref={actionsRef} className="flex gap-3 pt-1">
           <button
             onClick={goToPreviousStep}
             className="flex items-center gap-1.5 px-5 py-3.5 rounded-[18px] border border-gray-200 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 active:bg-gray-100 transition-all shadow-sm"

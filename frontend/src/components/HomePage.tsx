@@ -36,16 +36,57 @@ import { testimonials } from '../data/mockData';
 const LOCATION_STORAGE_KEY = 'device360Location';
 const LOCATION_CONFIRMED_KEY = 'device360LocationConfirmed';
 
+const normalizeLocationText = (value: string) => {
+  const cleaned = value
+    .trim()
+    .replace(/[_/]+/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  const withoutPrefix = cleaned
+    .replace(/^(mobile\s+repair\s+)+/i, '')
+    .replace(/^(repair\s+)+/i, '');
+
+  const words = withoutPrefix.split(' ').filter(Boolean);
+
+  const deduped: string[] = [];
+  for (const word of words) {
+    if (!deduped.length || deduped[deduped.length - 1].toLowerCase() !== word.toLowerCase()) {
+      deduped.push(word);
+    }
+  }
+
+  return deduped.join(' ').trim();
+};
+
 const toPrettyLocation = (slug?: string) => {
   if (!slug) return 'Bengaluru';
-  return slug
+
+  const cleanSlug =
+    slug
+      .split('/')
+      .filter(Boolean)
+      .slice(-1)[0]
+      ?.toLowerCase()
+      .replace(/^(mobile-repair-)+/i, '')
+      .replace(/^(repair-)+/i, '')
+      .replace(/^-+|-+$/g, '') || '';
+
+  const pretty = cleanSlug
     .split('-')
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
+
+  return normalizeLocationText(pretty) || 'Bengaluru';
 };
 
-const toSlug = (v: string) => v.toLowerCase().replace(/\s+/g, '-');
+const toSlug = (v: string) =>
+  normalizeLocationText(v)
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/^(mobile-repair-)+/i, '')
+    .replace(/^(repair-)+/i, '')
+    .replace(/^-+|-+$/g, '');
 
 const buildWhatsAppUrl = (location: string, phoneModel = '') => {
   const message = encodeURIComponent(
@@ -195,7 +236,7 @@ const detectNearbyLocation = (lat: number, lon: number) => {
 const resolveStoredLocation = (value: string | null) => {
   if (!value) return null;
 
-  const normalized = value.toLowerCase().trim();
+  const normalized = normalizeLocationText(value).toLowerCase();
 
   return (
     SERVE_LOCATIONS.find(
@@ -511,9 +552,7 @@ const FAQSection = () => {
                   onClick={() => setOpenIndex(isOpen ? null : index)}
                   className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left sm:px-6"
                 >
-                  <span className="text-sm font-bold text-white sm:text-base">
-                    {item.q}
-                  </span>
+                  <span className="text-sm font-bold text-white sm:text-base">{item.q}</span>
 
                   <ChevronRight
                     className={`h-5 w-5 shrink-0 text-cyan-300 transition-transform duration-300 ${
@@ -569,7 +608,7 @@ const BrandSection = ({
         <SectionTitle
           eyebrow="Popular Brands"
           title="Choose Your Brand"
-          description="Brand logo cards only — clean, fast, and easy to scan."
+          description="Tap a brand to open the repair flow instantly."
           dark
         />
 
@@ -593,9 +632,26 @@ const BrandSection = ({
                   background: `linear-gradient(90deg, ${brand.accent}, rgba(255,255,255,0.08))`,
                 }}
               />
+
               <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-lg font-black text-white shadow-lg">
-                  {brand.logo}
+                <div
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/10 shadow-lg"
+                  style={{
+                    color: brand.accent,
+                    background:
+                      'linear-gradient(135deg, rgba(255,255,255,0.98), rgba(255,255,255,0.08))',
+                  }}
+                >
+                  <span
+                    className={`select-none ${
+                      brand.id === 'apple'
+                        ? 'text-2xl font-light tracking-tight'
+                        : 'text-xl font-black tracking-tight'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {brand.logo}
+                  </span>
                 </div>
 
                 <div className="min-w-0">
@@ -930,7 +986,7 @@ export const HomePage: React.FC = () => {
   useEffect(() => {
     const sync = () => {
       if (location) {
-        const pretty = toPrettyLocation(location);
+        const pretty = normalizeLocationText(toPrettyLocation(location));
         setCurrentLocation(pretty);
         localStorage.setItem(LOCATION_STORAGE_KEY, pretty);
         window.dispatchEvent(new Event('device360-location-change'));
@@ -938,7 +994,9 @@ export const HomePage: React.FC = () => {
       }
 
       const saved = localStorage.getItem(LOCATION_STORAGE_KEY);
-      if (saved) setCurrentLocation(saved);
+      if (saved) {
+        setCurrentLocation(normalizeLocationText(saved));
+      }
     };
 
     sync();
@@ -981,9 +1039,11 @@ export const HomePage: React.FC = () => {
   }, []);
 
   const handleLocationSelect = (locationItem: { name: string; slug: string }) => {
-    localStorage.setItem(LOCATION_STORAGE_KEY, locationItem.name);
+    const normalizedName = normalizeLocationText(locationItem.name);
+
+    localStorage.setItem(LOCATION_STORAGE_KEY, normalizedName);
     localStorage.setItem(LOCATION_CONFIRMED_KEY, 'true');
-    setCurrentLocation(locationItem.name);
+    setCurrentLocation(normalizedName);
     setShowLocationPicker(false);
     navigate(`/mobile-repair-${locationItem.slug}`);
   };
@@ -1019,7 +1079,7 @@ export const HomePage: React.FC = () => {
         if (detected) {
           localStorage.setItem(LOCATION_STORAGE_KEY, detected.name);
           localStorage.setItem(LOCATION_CONFIRMED_KEY, 'true');
-          setCurrentLocation(detected.name);
+          setCurrentLocation(normalizeLocationText(detected.name));
           navigate(`/mobile-repair-${detected.slug}`);
           return;
         }
@@ -1156,7 +1216,7 @@ export const HomePage: React.FC = () => {
               transition={{ duration: 0.65, delay: 0.12 }}
               className="mx-auto mt-10 max-w-6xl"
             >
-              <MobileBrandGrid navigate={navigate} repairPath={repairPath} />
+              <BrandSection repairPath={repairPath} navigate={navigate} search={search} />
             </motion.div>
 
             <motion.div
