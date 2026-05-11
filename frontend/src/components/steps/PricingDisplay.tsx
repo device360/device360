@@ -87,18 +87,6 @@ export const PricingDisplay: React.FC<StepProps> = ({
         </div>
       </div>
 
-      {/* ── 60-min badge ─────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-5 py-4 rounded-2xl bg-amber-50 border border-amber-100">
-        <div className="w-9 h-9 rounded-xl bg-amber-400 flex items-center justify-center flex-shrink-0">
-          <Zap className="w-4 h-4 text-white" />
-        </div>
-        <div>
-          <p className="font-black text-amber-800 text-sm">60-Minute Repair Promise</p>
-          <p className="text-xs text-amber-600 mt-0.5">
-            Pickup & drop not included. Repair done within 60 mins of reaching our lab.
-          </p>
-        </div>
-      </div>
 
       {/* ── Included benefits ─────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">

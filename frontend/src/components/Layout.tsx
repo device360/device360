@@ -164,7 +164,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </a>
 
               <a
-                href="https://wa.me/919876543210"
+                href="https://wa.me/9164405840"
                 target="_blank"
                 rel="noopener noreferrer"
                 title="WhatsApp us"

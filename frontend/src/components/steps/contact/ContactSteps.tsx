@@ -409,7 +409,7 @@ export const DeclarationStep: React.FC<DeclarationStepProps> = ({ goBack, onSubm
         </div>
         <h3 className="text-xl font-black text-gray-900 mb-1">Declaration</h3>
         <p className="text-sm text-gray-400">
-          We will pick up your device within 60 minutes. Please be ready.
+          We will pick up your device within 10-15 minutes. Please be ready.
         </p>
       </div>
 
@@ -550,21 +550,21 @@ h78.747C231.693,100.736,232.77,106.162,232.77,111.694z"
           <div className="flex items-start gap-3 rounded-2xl bg-blue-50 border border-blue-100 p-4">
             <CheckCircle2 className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
             <p className="text-sm text-gray-700 leading-relaxed">
-              Our pickup partner will reach you within 60 minutes after confirmation.
+              Our pickup partner will reach you within 10-15 minutes.
             </p>
           </div>
 
           <div className="flex items-start gap-3 rounded-2xl bg-gray-50 border border-gray-100 p-4">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
             <p className="text-sm text-gray-700 leading-relaxed">
-              Keep your device unlocked and ready for a smooth pickup.
+              Pack your device with box and seal it properly to avoid damage during transit.
             </p>
           </div>
 
           <div className="flex items-start gap-3 rounded-2xl bg-gray-50 border border-gray-100 p-4">
             <CheckCircle2 className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
             <p className="text-sm text-gray-700 leading-relaxed">
-              Please keep your charger and any required accessories nearby.
+              We ensure safe transit and delivery to our service center.
             </p>
           </div>
         </div>
@@ -578,7 +578,7 @@ h78.747C231.693,100.736,232.77,106.162,232.77,111.694z"
           className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
         />
         <span className="text-sm text-gray-700 leading-relaxed">
-          I understand and agree that the pickup will happen within 60 minutes, and I will be ready when the pickup partner arrives.
+          I will be ready when the pickup partner arrives.
         </span>
       </label>
 
