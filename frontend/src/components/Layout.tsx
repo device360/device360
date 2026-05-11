@@ -238,7 +238,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <img src={logo} alt="Device360" className="h-9 object-contain brightness-0 invert opacity-90" />
               </div>
               <p className="text-gray-500 text-sm leading-relaxed mb-5">
-                India's first mobile repair service with <span className="text-white font-medium">live video tracking</span>.
+                Next-Gen Phone Repairs with <span className="text-white font-medium">Live Repair</span>.
                 Transparent pricing, free pickup &amp; delivery, 6-month warranty.
               </p>
               <div className="flex items-center gap-3">
@@ -309,7 +309,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <a href="tel:+919876543210" className="flex items-start gap-3 group">
                     <Phone className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
                     <span className="text-xs text-gray-500 group-hover:text-blue-400 transition-colors">
-                      +91 98765 43210
+                      +91 9164405840
                     </span>
                   </a>
                 </li>
@@ -338,7 +338,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </ul>
 
               <a
-                href="https://wa.me/919876543210"
+                href="https://wa.me/919164405840"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-green-500 hover:bg-green-600 text-white text-xs font-semibold transition-all"

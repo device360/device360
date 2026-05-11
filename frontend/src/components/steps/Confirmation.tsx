@@ -276,7 +276,7 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
           href="tel:+919876543210"
           className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-all"
         >
-          <Phone className="w-4 h-4" /> +91 98765 43210
+          <Phone className="w-4 h-4" /> +91 9164405840
         </a>
       </motion.div>
     </div>
