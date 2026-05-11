@@ -8,14 +8,18 @@ import {
 import { auth } from '../../../firebaseClient';
 
 const BACKEND = 'https://device360.onrender.com';
-const OTP_EXPIRY_SECS = 60; // Firebase OTP valid for 60s
+const OTP_EXPIRY_SECS = 60;
 
 // ── Verifier management ────────────────────────────────────────────────────
 // We keep ONE verifier per container ID. On error we destroy and recreate.
 let _verifier: RecaptchaVerifier | null = null;
 
 function destroyVerifier() {
-  try { _verifier?.clear(); } catch { /* ignore */ }
+  try {
+    _verifier?.clear();
+  } catch {
+    // ignore
+  }
   _verifier = null;
 }
 
@@ -24,7 +28,9 @@ function getOrCreateVerifier(): RecaptchaVerifier {
     _verifier = new RecaptchaVerifier(auth, 'recaptcha-root', {
       size: 'invisible',
       callback: () => {},
-      'expired-callback': () => { destroyVerifier(); },
+      'expired-callback': () => {
+        destroyVerifier();
+      },
     });
   }
   return _verifier;
@@ -36,29 +42,33 @@ interface OTPStepProps {
   goBack: () => void;
 }
 
-export const OTPStep: React.FC<OTPStepProps> = ({ phone, onVerify, goBack }) => {
-  const [otp, setOtp]                     = useState(['', '', '', '', '', '']);
-  const [confirmation, setConfirmation]   = useState<ConfirmationResult | null>(null);
-  const [loading, setLoading]             = useState(false);
-  const [verifying, setVerifying]         = useState(false);
-  const [error, setError]                 = useState('');
-  const [sent, setSent]                   = useState(false);
-  const [countdown, setCountdown]         = useState(OTP_EXPIRY_SECS);
-  const [canResend, setCanResend]         = useState(false);
+export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
+  const [countdown, setCountdown] = useState(OTP_EXPIRY_SECS);
+  const [canResend, setCanResend] = useState(false);
 
-  const inputRefs   = useRef<(HTMLInputElement | null)[]>([]);
-  const hasSentRef  = useRef(false);
-  const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const hiddenOtpRef = useRef<HTMLInputElement | null>(null);
+  const hasSentRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const webOtpAbortRef = useRef<AbortController | null>(null);
+  const isVerifyingRef = useRef(false);
 
   // ── Start countdown ──────────────────────────────────────────────────────
   const startCountdown = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     setCountdown(OTP_EXPIRY_SECS);
     setCanResend(false);
+
     timerRef.current = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {
-          clearInterval(timerRef.current!);
+          if (timerRef.current) clearInterval(timerRef.current);
           setCanResend(true);
           return 0;
         }
@@ -67,21 +77,134 @@ export const OTPStep: React.FC<OTPStepProps> = ({ phone, onVerify, goBack }) => 
     }, 1000);
   }, []);
 
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+  const stopWebOtpListener = useCallback(() => {
+    try {
+      webOtpAbortRef.current?.abort();
+    } catch {
+      // ignore
+    }
+    webOtpAbortRef.current = null;
+  }, []);
+
+  const applyOtpCode = useCallback((raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 6);
+    if (!digits) return;
+
+    const next = digits.split('');
+    while (next.length < 6) next.push('');
+    setOtp(next);
+
+    if (digits.length === 6) {
+      setTimeout(() => {
+        inputRefs.current[5]?.focus();
+      }, 50);
+    }
+  }, []);
+
+  const verifyOTP = useCallback(
+    async (code: string) => {
+      if (!confirmation || code.length !== 6) return;
+      if (isVerifyingRef.current) return;
+
+      isVerifyingRef.current = true;
+      setVerifying(true);
+      setError('');
+
+      try {
+        const cred = await confirmation.confirm(code);
+        const token = await cred.user.getIdToken();
+
+        // Call onVerify immediately after Firebase confirms.
+        onVerify(code);
+
+        // Fire-and-forget backend notification.
+        fetch(`${BACKEND}/api/auth/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: token }),
+        }).catch(() => {
+          // non-critical
+        });
+      } catch (err: any) {
+        const code_ = err?.code ?? '';
+
+        if (code_ === 'auth/invalid-verification-code') {
+          setError('Incorrect OTP. Please check and try again.');
+        } else if (code_ === 'auth/code-expired') {
+          setError('OTP expired. Tap "Resend OTP" to get a new one.');
+          setCanResend(true);
+          if (timerRef.current) clearInterval(timerRef.current);
+          setCountdown(0);
+        } else {
+          setError('Verification failed. Try resending OTP.');
+        }
+
+        setOtp(['', '', '', '', '', '']);
+        setTimeout(() => inputRefs.current[0]?.focus(), 50);
+      } finally {
+        setVerifying(false);
+        isVerifyingRef.current = false;
+      }
+    },
+    [confirmation, onVerify],
+  );
+
+  const startWebOtpListener = useCallback(async () => {
+    stopWebOtpListener();
+
+    if (typeof window === 'undefined') return;
+    if (!('OTPCredential' in window)) return;
+    if (!navigator.credentials?.get) return;
+
+    const controller = new AbortController();
+    webOtpAbortRef.current = controller;
+
+    try {
+      const credential = (await navigator.credentials.get({
+        otp: { transport: ['sms'] },
+        signal: controller.signal,
+      } as any)) as any;
+
+      if (credential?.code) {
+        applyOtpCode(String(credential.code));
+      }
+    } catch {
+      // Ignore if user dismisses or browser doesn't support it.
+    } finally {
+      if (webOtpAbortRef.current === controller) {
+        webOtpAbortRef.current = null;
+      }
+    }
+  }, [applyOtpCode, stopWebOtpListener]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      stopWebOtpListener();
+    };
+  }, [stopWebOtpListener]);
 
   // ── Send OTP once on mount ───────────────────────────────────────────────
   useEffect(() => {
     if (hasSentRef.current) return;
     hasSentRef.current = true;
     sendOTP();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Auto-submit when all 6 digits filled ────────────────────────────────
+  // ── Start Web OTP listener when confirmation is available ───────────────
+  useEffect(() => {
+    if (!confirmation) return;
+    void startWebOtpListener();
+    return () => stopWebOtpListener();
+  }, [confirmation, startWebOtpListener, stopWebOtpListener]);
+
+  // ── Auto-submit when all 6 digits filled ─────────────────────────────────
   useEffect(() => {
     if (otp.every((d) => d !== '') && confirmation && !verifying) {
       verifyOTP(otp.join(''));
     }
-  }, [otp]);
+  }, [otp, confirmation, verifying, verifyOTP]);
 
   // ── Send / Resend OTP ────────────────────────────────────────────────────
   const sendOTP = async () => {
@@ -90,83 +213,50 @@ export const OTPStep: React.FC<OTPStepProps> = ({ phone, onVerify, goBack }) => 
     setSent(false);
 
     try {
-      // Always get a fresh verifier on (re)send to avoid stale state
       destroyVerifier();
       const verifier = getOrCreateVerifier();
-      const result   = await signInWithPhoneNumber(auth, phone, verifier);
+      const result = await signInWithPhoneNumber(auth, phone, verifier);
 
       setConfirmation(result);
       setSent(true);
       startCountdown();
-      // Focus first input
-      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
     } catch (err: any) {
-      destroyVerifier(); // always clean up on error
+      destroyVerifier();
       const code = err?.code ?? '';
-      if (code === 'auth/invalid-phone-number')    setError('Invalid phone number. Go back and check.');
-      else if (code === 'auth/too-many-requests')  setError('Too many attempts. Please wait a few minutes.');
-      else if (code === 'auth/invalid-app-credential') setError('App credential error. Refresh and try again.');
-      else setError(err.message || 'Failed to send OTP. Try again.');
+
+      if (code === 'auth/invalid-phone-number') {
+        setError('Invalid phone number. Go back and check.');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Too many attempts. Please wait a few minutes.');
+      } else if (code === 'auth/invalid-app-credential') {
+        setError('App credential error. Refresh and try again.');
+      } else {
+        setError(err?.message || 'Failed to send OTP. Try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleResend = () => {
-    hasSentRef.current = false; // allow re-send
+    hasSentRef.current = false;
     setOtp(['', '', '', '', '', '']);
     setError('');
-    sendOTP();
-  };
-
-  // ── Verify OTP ───────────────────────────────────────────────────────────
-  // KEY FIX: call onVerify IMMEDIATELY after Firebase confirms — don't wait for backend
-  const verifyOTP = async (code: string) => {
-    if (!confirmation || code.length !== 6) return;
-
-    setVerifying(true);
-    setError('');
-
-    try {
-      const cred  = await confirmation.confirm(code);
-      const token = await cred.user.getIdToken();
-
-      // ✅ Call onVerify RIGHT AWAY — don't block on backend
-      onVerify(code);
-
-      // Fire-and-forget backend notification (Render cold start doesn't block user)
-      fetch(`${BACKEND}/api/auth/verify-otp`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ idToken: token }),
-      }).catch(() => { /* non-critical */ });
-
-    } catch (err: any) {
-      const code_ = err?.code ?? '';
-      if (code_ === 'auth/invalid-verification-code') {
-        setError('Incorrect OTP. Please check and try again.');
-      } else if (code_ === 'auth/code-expired') {
-        setError('OTP expired. Tap "Resend OTP" to get a new one.');
-        setCanResend(true);
-        if (timerRef.current) clearInterval(timerRef.current);
-        setCountdown(0);
-      } else {
-        setError('Verification failed. Try resending OTP.');
-      }
-      // Clear inputs on error so user can retype
-      setOtp(['', '', '', '', '', '']);
-      setTimeout(() => inputRefs.current[0]?.focus(), 50);
-    } finally {
-      setVerifying(false);
-    }
+    void sendOTP();
   };
 
   // ── Input handling ───────────────────────────────────────────────────────
   const handleChange = (i: number, val: string) => {
     if (!/^\d*$/.test(val)) return;
+
     const updated = [...otp];
     updated[i] = val.slice(-1);
     setOtp(updated);
+
     if (val && i < 5) inputRefs.current[i + 1]?.focus();
   };
 
@@ -176,36 +266,56 @@ export const OTPStep: React.FC<OTPStepProps> = ({ phone, onVerify, goBack }) => 
     }
   };
 
-  // Handle paste (e.g. from SMS autofill)
+  // Handle paste / browser autofill / Web OTP API code injection
+  const handleCodeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    applyOtpCode(e.target.value);
+  };
+
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (digits.length === 6) {
-      setOtp(digits.split(''));
-      inputRefs.current[5]?.focus();
+    if (digits.length) {
+      applyOtpCode(digits);
     }
   };
 
   const isComplete = otp.every((d) => d !== '');
 
   return (
-    <div className="p-6 sm:p-8 space-y-6">
+    <div className="relative p-6 space-y-6 sm:p-8">
+      {/* Hidden autofill-friendly input */}
+      <input
+        ref={hiddenOtpRef}
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        name="otp"
+        aria-hidden="true"
+        tabIndex={-1}
+        value=""
+        onChange={handleCodeInput}
+        className="absolute left-0 top-0 h-px w-px opacity-0 pointer-events-none"
+      />
+
       {/* Hidden recaptcha container */}
       <div id="recaptcha-root" />
 
       {/* Header */}
       <div className="text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center">
-          <ShieldCheck className="w-8 h-8 text-blue-600" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50">
+          <ShieldCheck className="h-8 w-8 text-blue-600" />
         </div>
-        <h3 className="text-xl font-black text-gray-900 mb-1">Verify your number</h3>
+        <h3 className="mb-1 text-xl font-black text-gray-900">Verify your number</h3>
         <p className="text-sm text-gray-400">
-          {loading && !sent
-            ? 'Sending OTP…'
-            : sent
-            ? <>OTP sent to <span className="font-bold text-gray-700">{phone}</span></>
-            : 'Getting ready…'
-          }
+          {loading && !sent ? (
+            'Sending OTP…'
+          ) : sent ? (
+            <>
+              OTP sent to <span className="font-bold text-gray-700">{phone}</span>
+            </>
+          ) : (
+            'Getting ready…'
+          )}
         </p>
       </div>
 
@@ -214,17 +324,20 @@ export const OTPStep: React.FC<OTPStepProps> = ({ phone, onVerify, goBack }) => 
         {otp.map((digit, i) => (
           <input
             key={i}
-            ref={(el) => (inputRefs.current[i] = el)}
+            ref={(el) => {
+              inputRefs.current[i] = el;
+            }}
             type="tel"
             inputMode="numeric"
+            autoComplete={i === 0 ? 'one-time-code' : 'off'}
             maxLength={1}
             value={digit}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
             disabled={loading || verifying}
-            className={`w-11 h-14 sm:w-12 sm:h-14 text-center text-2xl font-black rounded-2xl border-2 outline-none transition-all
+            className={`h-14 w-11 rounded-2xl border-2 text-center text-2xl font-black outline-none transition-all sm:h-14 sm:w-12
               ${digit ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-900'}
-              ${(loading || verifying) ? 'opacity-50 cursor-not-allowed' : 'focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50'}
+              ${loading || verifying ? 'cursor-not-allowed opacity-50' : 'focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50'}
               ${error ? 'border-red-300 bg-red-50' : ''}
             `}
           />
@@ -235,16 +348,16 @@ export const OTPStep: React.FC<OTPStepProps> = ({ phone, onVerify, goBack }) => 
       <div className="text-center">
         {verifying ? (
           <div className="flex items-center justify-center gap-2 text-blue-600">
-            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
             <span className="text-sm font-semibold">Verifying…</span>
           </div>
         ) : canResend ? (
           <button
             onClick={handleResend}
             disabled={loading}
-            className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 transition-colors hover:text-blue-700"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className="h-3.5 w-3.5" />
             {loading ? 'Sending…' : 'Resend OTP'}
           </button>
         ) : sent ? (
@@ -259,18 +372,18 @@ export const OTPStep: React.FC<OTPStepProps> = ({ phone, onVerify, goBack }) => 
 
       {/* Error */}
       {error && (
-        <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-red-50 border border-red-100">
-          <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <span className="text-white text-[10px] font-black">!</span>
+        <div className="flex items-start gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3.5">
+          <div className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-red-500">
+            <span className="text-[10px] font-black text-white">!</span>
           </div>
-          <p className="text-sm text-red-700 font-medium">{error}</p>
+          <p className="text-sm font-medium text-red-700">{error}</p>
         </div>
       )}
 
-      {/* Verify button (shown when all filled but not yet auto-submitting) */}
+      {/* Auto verify hint */}
       {isComplete && !verifying && !error && (
         <div className="flex items-center justify-center gap-2 text-green-600">
-          <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
           <span className="text-sm font-semibold">Verifying automatically…</span>
         </div>
       )}
@@ -280,7 +393,7 @@ export const OTPStep: React.FC<OTPStepProps> = ({ phone, onVerify, goBack }) => 
         <button
           onClick={() => verifyOTP(otp.join(''))}
           disabled={verifying}
-          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-black text-sm hover:from-blue-700 hover:to-blue-800 shadow-lg shadow-blue-200 transition-all active:scale-95 disabled:opacity-50"
+          className="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition-all active:scale-95 hover:from-blue-700 hover:to-blue-800 disabled:opacity-50"
         >
           {verifying ? 'Verifying…' : 'Try Again'}
         </button>
@@ -290,9 +403,10 @@ export const OTPStep: React.FC<OTPStepProps> = ({ phone, onVerify, goBack }) => 
       <button
         onClick={goBack}
         disabled={loading || verifying}
-        className="w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl border-2 border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-all disabled:opacity-40"
+        className="flex w-full items-center justify-center gap-1.5 rounded-2xl border-2 border-gray-200 py-3 text-sm font-bold text-gray-600 transition-all hover:bg-gray-50 disabled:opacity-40"
       >
-        <ChevronLeft className="w-4 h-4" /> Change number
+        <ChevronLeft className="h-4 w-4" />
+        Change number
       </button>
     </div>
   );

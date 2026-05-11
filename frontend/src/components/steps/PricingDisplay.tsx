@@ -41,10 +41,6 @@ export const PricingDisplay: React.FC<StepProps> = ({
               {referenceCode}
             </p>
           </div>
-          <div className="rounded-2xl bg-blue-50 px-4 py-3 text-right border border-blue-100">
-            <p className="text-[11px] font-semibold text-blue-600">6-digit alphanumeric</p>
-            <p className="text-xs text-blue-500 mt-0.5">Unique for this quote</p>
-          </div>
         </div>
       </div>
 

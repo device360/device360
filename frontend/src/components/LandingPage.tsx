@@ -391,9 +391,8 @@ const FAQSection = () => {
                   </span>
 
                   <ChevronRight
-                    className={`h-5 w-5 shrink-0 text-blue-600 transition-transform duration-300 ${
-                      isOpen ? 'rotate-90' : ''
-                    }`}
+                    className={`h-5 w-5 shrink-0 text-blue-600 transition-transform duration-300 ${isOpen ? 'rotate-90' : ''
+                      }`}
                   />
                 </button>
 
@@ -731,20 +730,18 @@ export const LandingPage: React.FC = () => {
                   ))}
                 </motion.div>
 
-                <motion.div variants={fadeUp} className="flex flex-col gap-3 pt-1 sm:flex-row xl:justify-start">
-                  <motion.button
-                    onClick={() => navigate(repairPath)}
-                    whileHover={{ scale: 1.02, y: -2 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="scan-btn inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-black/85 px-5 py-4 text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_18px_40px_rgba(34,211,238,0.16)] transition-all sm:w-auto sm:px-7 sm:py-4 sm:text-base"
-                    aria-label="Check instant pricing"
-                    data-testid="check-price-button"
-                  >
-                    <Video className="relative z-10 h-4 w-4 shrink-0 text-cyan-300" />
-                    <span className="relative z-10">Check Instant Pricing</span>
-                    <ArrowRight className="relative z-10 h-4 w-4 shrink-0 text-cyan-300" />
-                  </motion.button>
-                </motion.div>
+                <motion.button
+                  onClick={() => navigate(repairPath)}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="scan-btn inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-gradient-to-br from-pink-500 via-rose-500 to-orange-400 px-5 py-4 text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_18px_40px_rgba(244,63,94,0.35)] transition-all sm:w-auto sm:px-7 sm:py-4 sm:text-base"
+                  aria-label="Check instant pricing"
+                  data-testid="check-price-button"
+                >
+                  <Video className="relative z-10 h-4 w-4 shrink-0 text-white" />
+                  <span className="relative z-10">Check Instant Pricing</span>
+                  <ArrowRight className="relative z-10 h-4 w-4 shrink-0 text-white" />
+                </motion.button>
               </motion.div>
 
               <motion.div
@@ -960,25 +957,22 @@ export const LandingPage: React.FC = () => {
                       e.preventDefault();
                       navigate(`/${loc.slug}`);
                     }}
-                    className={`group flex items-center gap-3 rounded-[20px] border p-4 text-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${
-                      isActive
-                        ? 'border-blue-200 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-blue-200'
-                        : 'border-gray-200 bg-white text-gray-700 hover:border-blue-200 hover:text-blue-700'
-                    }`}
+                    className={`group flex items-center gap-3 rounded-[20px] border p-4 text-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${isActive
+                      ? 'border-blue-200 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-blue-200'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-blue-200 hover:text-blue-700'
+                      }`}
                   >
                     <MapPin
-                      className={`h-4 w-4 shrink-0 ${
-                        isActive
-                          ? 'text-blue-200'
-                          : 'text-gray-400 group-hover:text-blue-500'
-                      }`}
+                      className={`h-4 w-4 shrink-0 ${isActive
+                        ? 'text-blue-200'
+                        : 'text-gray-400 group-hover:text-blue-500'
+                        }`}
                     />
                     <div className="min-w-0">
                       <p className="font-bold leading-tight">{loc.name}</p>
                       <p
-                        className={`text-[10px] font-medium ${
-                          isActive ? 'text-blue-200' : 'text-gray-400'
-                        }`}
+                        className={`text-[10px] font-medium ${isActive ? 'text-blue-200' : 'text-gray-400'
+                          }`}
                       >
                         Mobile Repair
                       </p>
