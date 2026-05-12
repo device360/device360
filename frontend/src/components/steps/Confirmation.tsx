@@ -169,13 +169,6 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
           </div>
         </div>
 
-        {/* 60-min badge */}
-        <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-amber-500/20 border border-amber-500/30 mb-5">
-          <Zap className="w-4 h-4 text-amber-400 flex-shrink-0" />
-          <p className="text-xs text-amber-300 font-medium">
-            60-minute repair promise. Pickup & drop not included.
-          </p>
-        </div>
 
         {/* Live repair */}
         {isLive && (
