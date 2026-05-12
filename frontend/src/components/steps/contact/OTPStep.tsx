@@ -195,19 +195,17 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   useEffect(() => {
     if (hasSentRef.current) return;
     hasSentRef.current = true;
+
+    // Start Web OTP listener BEFORE sending the SMS so it is already
+    // in flight when the message arrives — required by the Web OTP API spec.
+    void startWebOtpListener();
     void sendOTP();
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       stopWebOtpListener();
     };
-  }, [sendOTP, stopWebOtpListener]);
-
-  useEffect(() => {
-    if (confirmation) {
-      void startWebOtpListener();
-    }
-  }, [confirmation, startWebOtpListener]);
+  }, [sendOTP, stopWebOtpListener, startWebOtpListener]);
 
   useEffect(() => {
     const fullCode = otp.join('');
@@ -217,6 +215,14 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   }, [otp, confirmation, verifying, verifyOTP]);
 
   const handleChange = (i: number, val: string) => {
+    // If the browser autofills the full OTP into one box (common on iOS/desktop),
+    // val will be the entire code — route it through applyOtpCode instead of
+    // discarding all but the last character.
+    if (val.replace(/\D/g, '').length > 1) {
+      applyOtpCode(val);
+      return;
+    }
+
     const char = val.replace(/\D/g, '').slice(-1);
     if (!char && val !== '') return;
 
@@ -247,13 +253,17 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     <div className="relative space-y-6 p-6 sm:p-8">
       <div id="recaptcha-root" />
 
-      {/* HIDDEN INPUT FOR BROWSER AUTOFILL SUPPORT */}
+      {/* HIDDEN INPUT FOR BROWSER AUTOFILL SUPPORT
+          Must be off-screen via left:-9999px, NOT opacity-0/pointer-events-none,
+          so browsers and iOS/Android autofill can actually interact with it. */}
       <input
         ref={hiddenInputRef}
+        id="otp-autofill"
+        name="otp"
         type="text"
         inputMode="numeric"
         autoComplete="one-time-code"
-        className="absolute opacity-0 pointer-events-none"
+        style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
         onChange={(e) => applyOtpCode(e.target.value)}
       />
 
