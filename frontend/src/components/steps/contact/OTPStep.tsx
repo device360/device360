@@ -50,10 +50,8 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   const [sent, setSent] = useState(false);
   const [countdown, setCountdown] = useState(OTP_EXPIRY_SECS);
   const [canResend, setCanResend] = useState(false);
-  const [hiddenValue, setHiddenValue] = useState('');
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const hiddenOtpRef = useRef<HTMLInputElement | null>(null);
   const hasSentRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const webOtpAbortRef = useRef<AbortController | null>(null);
@@ -62,8 +60,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   const applyOtpCode = useCallback((raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 6);
     if (!digits) return;
-
-    setHiddenValue(digits);
 
     const next = Array.from({ length: 6 }, (_, i) => digits[i] ?? '');
     setOtp(next);
@@ -99,12 +95,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       // ignore
     }
     webOtpAbortRef.current = null;
-  }, []);
-
-  const focusHiddenOtp = useCallback(() => {
-    requestAnimationFrame(() => {
-      hiddenOtpRef.current?.focus();
-    });
   }, []);
 
   const verifyOTP = useCallback(
@@ -144,7 +134,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         }
 
         setOtp(['', '', '', '', '', '']);
-        setHiddenValue('');
         setTimeout(() => inputRefs.current[0]?.focus(), 50);
       } finally {
         setVerifying(false);
@@ -187,7 +176,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     setLoading(true);
     setError('');
     setSent(false);
-    setHiddenValue('');
     setOtp(['', '', '', '', '', '']);
 
     try {
@@ -200,7 +188,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       startCountdown();
 
       setTimeout(() => {
-        focusHiddenOtp();
         inputRefs.current[0]?.focus();
       }, 150);
     } catch (err: any) {
@@ -219,7 +206,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     } finally {
       setLoading(false);
     }
-  }, [focusHiddenOtp, phone, startCountdown]);
+  }, [phone, startCountdown]);
 
   useEffect(() => {
     return () => {
@@ -257,6 +244,8 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
 
     const digitsOnly = val.replace(/\D/g, '');
 
+    // If the browser/autofill drops the full OTP into one field,
+    // spread it across all boxes.
     if (digitsOnly.length > 1) {
       applyOtpCode(digitsOnly);
       return;
@@ -275,10 +264,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     }
   };
 
-  const handleHiddenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    applyOtpCode(e.target.value);
-  };
-
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
@@ -289,20 +274,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
 
   return (
     <div className="relative space-y-6 p-6 sm:p-8">
-      <input
-        ref={hiddenOtpRef}
-        type="text"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        name="otp"
-        aria-hidden="true"
-        tabIndex={-1}
-        defaultValue=""
-        onInput={handleHiddenChange}
-        onChange={handleHiddenChange}
-        className="absolute left-0 top-0 h-px w-px opacity-0"
-      />
-
       <div id="recaptcha-root" />
 
       <div className="text-center">
@@ -333,6 +304,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
             type="text"
             inputMode="numeric"
             autoComplete={i === 0 ? 'one-time-code' : 'off'}
+            name={i === 0 ? 'one-time-code' : undefined}
             maxLength={i === 0 ? 6 : 1}
             value={digit}
             onInput={(e) => handleChange(i, e.currentTarget.value)}
