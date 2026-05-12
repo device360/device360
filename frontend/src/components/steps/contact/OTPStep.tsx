@@ -11,15 +11,10 @@ const BACKEND = 'https://device360.onrender.com';
 const OTP_EXPIRY_SECS = 60;
 
 // ── Verifier management ────────────────────────────────────────────────────
-// We keep ONE verifier per container ID. On error we destroy and recreate.
 let _verifier: RecaptchaVerifier | null = null;
 
 function destroyVerifier() {
-  try {
-    _verifier?.clear();
-  } catch {
-    // ignore
-  }
+  try { _verifier?.clear(); } catch { /* ignore */ }
   _verifier = null;
 }
 
@@ -28,9 +23,7 @@ function getOrCreateVerifier(): RecaptchaVerifier {
     _verifier = new RecaptchaVerifier(auth, 'recaptcha-root', {
       size: 'invisible',
       callback: () => {},
-      'expired-callback': () => {
-        destroyVerifier();
-      },
+      'expired-callback': () => { destroyVerifier(); },
     });
   }
   return _verifier;
@@ -51,6 +44,8 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   const [sent, setSent] = useState(false);
   const [countdown, setCountdown] = useState(OTP_EXPIRY_SECS);
   const [canResend, setCanResend] = useState(false);
+  // Controlled value for the hidden autofill input
+  const [hiddenValue, setHiddenValue] = useState('');
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const hiddenOtpRef = useRef<HTMLInputElement | null>(null);
@@ -78,33 +73,19 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   }, []);
 
   const stopWebOtpListener = useCallback(() => {
-    try {
-      webOtpAbortRef.current?.abort();
-    } catch {
-      // ignore
-    }
+    try { webOtpAbortRef.current?.abort(); } catch { /* ignore */ }
     webOtpAbortRef.current = null;
-  }, []);
-
-  const focusHiddenOtp = useCallback(() => {
-    // A tiny invisible field is enough to trigger browser SMS OTP / Web OTP flows.
-    requestAnimationFrame(() => {
-      hiddenOtpRef.current?.focus();
-    });
   }, []);
 
   const applyOtpCode = useCallback((raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 6);
     if (!digits) return;
 
-    const next = digits.split('');
-    while (next.length < 6) next.push('');
+    const next = Array.from({ length: 6 }, (_, i) => digits[i] ?? '');
     setOtp(next);
 
     if (digits.length === 6) {
-      setTimeout(() => {
-        inputRefs.current[5]?.focus();
-      }, 50);
+      setTimeout(() => { inputRefs.current[5]?.focus(); }, 50);
     }
   }, []);
 
@@ -121,17 +102,13 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         const cred = await confirmation.confirm(code);
         const token = await cred.user.getIdToken();
 
-        // Call onVerify immediately after Firebase confirms.
         onVerify(code);
 
-        // Fire-and-forget backend notification.
         fetch(`${BACKEND}/api/auth/verify-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ idToken: token }),
-        }).catch(() => {
-          // non-critical
-        });
+        }).catch(() => { /* non-critical */ });
       } catch (err: any) {
         const code_ = err?.code ?? '';
 
@@ -147,6 +124,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         }
 
         setOtp(['', '', '', '', '', '']);
+        setHiddenValue('');
         setTimeout(() => inputRefs.current[0]?.focus(), 50);
       } finally {
         setVerifying(false);
@@ -168,15 +146,18 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
 
     try {
       const credential = (await navigator.credentials.get({
+        // @ts-ignore — OTPCredential is not in all TS libs yet
         otp: { transport: ['sms'] },
         signal: controller.signal,
-      } as any)) as any;
+      })) as any;
 
       if (credential?.code) {
+        // Apply to both state and hidden field value
         applyOtpCode(String(credential.code));
+        setHiddenValue(String(credential.code));
       }
     } catch {
-      // Ignore if user dismisses or browser doesn't support it.
+      // Ignore abort / unsupported
     } finally {
       if (webOtpAbortRef.current === controller) {
         webOtpAbortRef.current = null;
@@ -199,7 +180,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Start Web OTP listener when confirmation is available ───────────────
+  // ── Start Web OTP listener when confirmation is ready ───────────────────
   useEffect(() => {
     if (!confirmation) return;
     void startWebOtpListener();
@@ -218,6 +199,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     setLoading(true);
     setError('');
     setSent(false);
+    setHiddenValue('');
 
     try {
       destroyVerifier();
@@ -228,10 +210,11 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       setSent(true);
       startCountdown();
 
-      // Focus the hidden OTP field so SMS autofill / one-time-code suggestions work.
+      // Focus the first visible OTP box — browsers attach autocomplete="one-time-code"
+      // suggestions to the focused input, so focus box 0 right away.
       setTimeout(() => {
-        focusHiddenOtp();
-      }, 100);
+        inputRefs.current[0]?.focus();
+      }, 150);
     } catch (err: any) {
       destroyVerifier();
       const code = err?.code ?? '';
@@ -261,9 +244,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   const handleChange = (i: number, val: string) => {
     if (!/^\d*$/.test(val)) return;
 
-    // IMPORTANT:
-    // When browser autofills or SMS OTP suggestions paste the whole code into
-    // one input, distribute all digits across the 6 boxes.
     const digitsOnly = val.replace(/\D/g, '');
     if (digitsOnly.length > 1) {
       applyOtpCode(digitsOnly);
@@ -283,24 +263,33 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     }
   };
 
-  // Handle paste / browser autofill / hidden OTP autofill / Web OTP API code injection
-  const handleCodeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    applyOtpCode(e.target.value);
+  // Hidden field change — browser SMS autofill writes the full code here
+  const handleHiddenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setHiddenValue(val);
+    applyOtpCode(val);
+    // Move focus to first visible box so the user sees feedback
+    requestAnimationFrame(() => { inputRefs.current[0]?.focus(); });
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (digits.length) {
-      applyOtpCode(digits);
-    }
+    if (digits.length) applyOtpCode(digits);
   };
 
   const isComplete = otp.every((d) => d !== '');
 
   return (
     <div className="relative space-y-6 p-6 sm:p-8">
-      {/* Hidden autofill-friendly input */}
+      {/*
+        Hidden input that browsers use for SMS OTP autofill.
+        - Must be CONTROLLED (value=hiddenValue) so React tracks it
+        - autocomplete="one-time-code" triggers the browser suggestion sheet
+        - inputMode="numeric" keeps the numeric keyboard on mobile
+        - It's visually hidden but NOT display:none / visibility:hidden
+          because some browsers skip autofill on truly hidden elements
+      */}
       <input
         ref={hiddenOtpRef}
         type="text"
@@ -309,9 +298,8 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         name="otp"
         aria-hidden="true"
         tabIndex={-1}
-        defaultValue=""
-        onInput={handleCodeInput}
-        onChange={handleCodeInput}
+        value={hiddenValue}
+        onChange={handleHiddenChange}
         className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
       />
 
@@ -342,13 +330,14 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         {otp.map((digit, i) => (
           <input
             key={i}
-            ref={(el) => {
-              inputRefs.current[i] = el;
-            }}
+            ref={(el) => { inputRefs.current[i] = el; }}
             type="tel"
             inputMode="numeric"
+            // Only the first box gets one-time-code — having it on all 6 boxes
+            // causes browsers to fire multiple autofill events and conflict with
+            // the hidden field. One declaration is enough to trigger the suggestion.
             autoComplete={i === 0 ? 'one-time-code' : 'off'}
-            maxLength={1}
+            maxLength={6}
             value={digit}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
@@ -406,7 +395,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </div>
       )}
 
-      {/* Manual verify button (fallback for errors) */}
+      {/* Manual verify button (fallback after errors) */}
       {error && isComplete && (
         <button
           onClick={() => void verifyOTP(otp.join(''))}
