@@ -14,7 +14,11 @@ const OTP_EXPIRY_SECS = 60;
 let _verifier: RecaptchaVerifier | null = null;
 
 function destroyVerifier() {
-  try { _verifier?.clear(); } catch { /* ignore */ }
+  try {
+    _verifier?.clear();
+  } catch {
+    // ignore
+  }
   _verifier = null;
 }
 
@@ -23,7 +27,9 @@ function getOrCreateVerifier(): RecaptchaVerifier {
     _verifier = new RecaptchaVerifier(auth, 'recaptcha-root', {
       size: 'invisible',
       callback: () => {},
-      'expired-callback': () => { destroyVerifier(); },
+      'expired-callback': () => {
+        destroyVerifier();
+      },
     });
   }
   return _verifier;
@@ -44,8 +50,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   const [sent, setSent] = useState(false);
   const [countdown, setCountdown] = useState(OTP_EXPIRY_SECS);
   const [canResend, setCanResend] = useState(false);
-  // Controlled value for the hidden autofill input
-  const [hiddenValue, setHiddenValue] = useState('');
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const hiddenOtpRef = useRef<HTMLInputElement | null>(null);
@@ -54,7 +58,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   const webOtpAbortRef = useRef<AbortController | null>(null);
   const isVerifyingRef = useRef(false);
 
-  // ── Start countdown ──────────────────────────────────────────────────────
   const startCountdown = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     setCountdown(OTP_EXPIRY_SECS);
@@ -73,7 +76,11 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   }, []);
 
   const stopWebOtpListener = useCallback(() => {
-    try { webOtpAbortRef.current?.abort(); } catch { /* ignore */ }
+    try {
+      webOtpAbortRef.current?.abort();
+    } catch {
+      // ignore
+    }
     webOtpAbortRef.current = null;
   }, []);
 
@@ -85,7 +92,9 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     setOtp(next);
 
     if (digits.length === 6) {
-      setTimeout(() => { inputRefs.current[5]?.focus(); }, 50);
+      setTimeout(() => {
+        inputRefs.current[5]?.focus();
+      }, 50);
     }
   }, []);
 
@@ -108,7 +117,9 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ idToken: token }),
-        }).catch(() => { /* non-critical */ });
+        }).catch(() => {
+          // non-critical
+        });
       } catch (err: any) {
         const code_ = err?.code ?? '';
 
@@ -124,7 +135,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         }
 
         setOtp(['', '', '', '', '', '']);
-        setHiddenValue('');
         setTimeout(() => inputRefs.current[0]?.focus(), 50);
       } finally {
         setVerifying(false);
@@ -146,18 +156,16 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
 
     try {
       const credential = (await navigator.credentials.get({
-        // @ts-ignore — OTPCredential is not in all TS libs yet
+        // @ts-expect-error Web OTP is not available in all TS libs
         otp: { transport: ['sms'] },
         signal: controller.signal,
       })) as any;
 
       if (credential?.code) {
-        // Apply to both state and hidden field value
         applyOtpCode(String(credential.code));
-        setHiddenValue(String(credential.code));
       }
     } catch {
-      // Ignore abort / unsupported
+      // ignore abort / unsupported
     } finally {
       if (webOtpAbortRef.current === controller) {
         webOtpAbortRef.current = null;
@@ -172,7 +180,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     };
   }, [stopWebOtpListener]);
 
-  // ── Send OTP once on mount ───────────────────────────────────────────────
   useEffect(() => {
     if (hasSentRef.current) return;
     hasSentRef.current = true;
@@ -180,26 +187,22 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Start Web OTP listener when confirmation is ready ───────────────────
   useEffect(() => {
     if (!confirmation) return;
     void startWebOtpListener();
     return () => stopWebOtpListener();
   }, [confirmation, startWebOtpListener, stopWebOtpListener]);
 
-  // ── Auto-submit when all 6 digits filled ─────────────────────────────────
   useEffect(() => {
     if (otp.every((d) => d !== '') && confirmation && !verifying) {
       void verifyOTP(otp.join(''));
     }
   }, [otp, confirmation, verifying, verifyOTP]);
 
-  // ── Send / Resend OTP ────────────────────────────────────────────────────
   const sendOTP = async () => {
     setLoading(true);
     setError('');
     setSent(false);
-    setHiddenValue('');
 
     try {
       destroyVerifier();
@@ -210,8 +213,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       setSent(true);
       startCountdown();
 
-      // Focus the first visible OTP box — browsers attach autocomplete="one-time-code"
-      // suggestions to the focused input, so focus box 0 right away.
       setTimeout(() => {
         inputRefs.current[0]?.focus();
       }, 150);
@@ -240,11 +241,12 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     void sendOTP();
   };
 
-  // ── Input handling ───────────────────────────────────────────────────────
   const handleChange = (i: number, val: string) => {
     if (!/^\d*$/.test(val)) return;
 
     const digitsOnly = val.replace(/\D/g, '');
+
+    // If the browser/autofill drops the full OTP into one field, spread it across all boxes.
     if (digitsOnly.length > 1) {
       applyOtpCode(digitsOnly);
       return;
@@ -263,13 +265,8 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     }
   };
 
-  // Hidden field change — browser SMS autofill writes the full code here
   const handleHiddenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setHiddenValue(val);
-    applyOtpCode(val);
-    // Move focus to first visible box so the user sees feedback
-    requestAnimationFrame(() => { inputRefs.current[0]?.focus(); });
+    applyOtpCode(e.target.value);
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -282,14 +279,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
 
   return (
     <div className="relative space-y-6 p-6 sm:p-8">
-      {/*
-        Hidden input that browsers use for SMS OTP autofill.
-        - Must be CONTROLLED (value=hiddenValue) so React tracks it
-        - autocomplete="one-time-code" triggers the browser suggestion sheet
-        - inputMode="numeric" keeps the numeric keyboard on mobile
-        - It's visually hidden but NOT display:none / visibility:hidden
-          because some browsers skip autofill on truly hidden elements
-      */}
       <input
         ref={hiddenOtpRef}
         type="text"
@@ -298,15 +287,14 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         name="otp"
         aria-hidden="true"
         tabIndex={-1}
-        value={hiddenValue}
+        defaultValue=""
+        onInput={handleHiddenChange}
         onChange={handleHiddenChange}
         className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
       />
 
-      {/* Hidden recaptcha container */}
       <div id="recaptcha-root" />
 
-      {/* Header */}
       <div className="text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50">
           <ShieldCheck className="h-8 w-8 text-blue-600" />
@@ -325,17 +313,15 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </p>
       </div>
 
-      {/* OTP Inputs */}
       <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
         {otp.map((digit, i) => (
           <input
             key={i}
-            ref={(el) => { inputRefs.current[i] = el; }}
+            ref={(el) => {
+              inputRefs.current[i] = el;
+            }}
             type="tel"
             inputMode="numeric"
-            // Only the first box gets one-time-code — having it on all 6 boxes
-            // causes browsers to fire multiple autofill events and conflict with
-            // the hidden field. One declaration is enough to trigger the suggestion.
             autoComplete={i === 0 ? 'one-time-code' : 'off'}
             maxLength={6}
             value={digit}
@@ -351,7 +337,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         ))}
       </div>
 
-      {/* Countdown / Resend */}
       <div className="text-center">
         {verifying ? (
           <div className="flex items-center justify-center gap-2 text-blue-600">
@@ -377,7 +362,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         ) : null}
       </div>
 
-      {/* Error */}
       {error && (
         <div className="flex items-start gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3.5">
           <div className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-red-500">
@@ -387,7 +371,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </div>
       )}
 
-      {/* Auto verify hint */}
       {isComplete && !verifying && !error && (
         <div className="flex items-center justify-center gap-2 text-green-600">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
@@ -395,7 +378,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </div>
       )}
 
-      {/* Manual verify button (fallback after errors) */}
       {error && isComplete && (
         <button
           onClick={() => void verifyOTP(otp.join(''))}
@@ -406,7 +388,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </button>
       )}
 
-      {/* Back */}
       <button
         onClick={goBack}
         disabled={loading || verifying}
