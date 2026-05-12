@@ -17,18 +17,36 @@ import type { StepProps, AddressFields } from '../../types';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
+const toShortBookingCode = (value?: string | null) => {
+  const raw = (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!raw) return 'PENDING';
+  if (raw.length === 7) return raw;
+
+  let hash = 5381;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash = ((hash << 5) + hash) + raw.charCodeAt(i);
+    hash |= 0;
+  }
+
+  const base36 = Math.abs(hash).toString(36).toUpperCase().padStart(6, '0');
+  return `D${base36.slice(-6)}`; // 7 chars total, alphanumeric
+};
+
 export const Confirmation: React.FC<StepProps> = ({ formData }) => {
   const navigate = useNavigate();
   const isLive = formData.issue?.liveRepair;
   const [videoLink, setVideoLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const rawBookingId = formData.bookingId || '';
+  const bookingCode = toShortBookingCode(rawBookingId);
+
   useEffect(() => {
-    if (!isLive || !formData.bookingId) return;
+    if (!isLive || !rawBookingId) return;
 
     const id = setInterval(async () => {
       try {
-        const res = await fetch(`${BACKEND}/api/leads/${formData.bookingId}`);
+        const res = await fetch(`${BACKEND}/api/leads/${rawBookingId}`);
         const data = await res.json();
         if (data.lead?.videoLink) {
           setVideoLink(data.lead.videoLink);
@@ -40,7 +58,7 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
     }, 15000);
 
     return () => clearInterval(id);
-  }, [isLive, formData.bookingId]);
+  }, [isLive, rawBookingId]);
 
   const addrStr = (() => {
     const a = formData.address;
@@ -54,7 +72,7 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
   const handleWhatsApp = () => {
     const msg = encodeURIComponent(
       `Hi! My booking is confirmed.\n\n` +
-        `📋 Booking ID: #${formData.bookingId}\n` +
+        `📋 Booking ID: #${bookingCode}\n` +
         `📱 Device: ${formData.brand?.name} ${formData.model}\n` +
         `🔧 Issue: ${formData.issue?.name}\n` +
         `🕐 Pickup: Within 60 minutes\n` +
@@ -65,7 +83,7 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
 
   const copyBookingId = async () => {
     try {
-      await navigator.clipboard.writeText(`#${formData.bookingId}`);
+      await navigator.clipboard.writeText(`#${bookingCode}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -77,8 +95,8 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
     try {
       await navigator.share({
         title: 'My Repair Booking',
-        text: `Track my repair: #${formData.bookingId}`,
-        url: `${window.location.origin}/dashboard/${formData.bookingId}`,
+        text: `Track my repair: #${bookingCode}`,
+        url: `${window.location.origin}/dashboard/${rawBookingId}`,
       });
     } catch {
       /* user cancelled */
@@ -96,8 +114,8 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
           className="inline-flex"
         >
           <div className="relative">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-xl shadow-green-200">
-              <CheckCircle className="w-12 h-12 text-white" />
+            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-500 shadow-xl shadow-green-200">
+              <CheckCircle className="h-12 w-12 text-white" />
             </div>
             <motion.div
               initial={{ scale: 0.8, opacity: 0.8 }}
@@ -121,7 +139,7 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
           className="mt-4"
         >
           <h2 className="text-2xl font-black text-gray-900">Booking Confirmed! 🎉</h2>
-          <p className="text-gray-400 mt-1 text-sm">
+          <p className="mt-1 text-sm text-gray-400">
             Thank you, <span className="font-bold text-gray-700">{formData.name}</span>. We've got your request!
           </p>
         </motion.div>
@@ -132,68 +150,67 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-4 sm:p-6 text-white"
+        className="rounded-3xl bg-gradient-to-br from-gray-900 to-gray-800 p-4 text-white sm:p-6"
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
+        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-1">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">
               Booking ID
             </p>
             <p
-              className="text-2xl sm:text-4xl font-black tracking-tight break-all leading-tight max-w-full"
+              className="max-w-full break-all text-2xl font-black leading-tight tracking-tight sm:text-4xl"
               data-testid="booking-id"
             >
-              #{formData.bookingId || 'PENDING'}
+              #{bookingCode}
             </p>
           </div>
 
           <div className="flex gap-2 self-start sm:self-auto">
             <button
               onClick={copyBookingId}
-              className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 transition-all hover:bg-white/20"
               title="Copy booking ID"
             >
               {copied ? (
-                <CheckCircle className="w-4 h-4 text-green-400" />
+                <CheckCircle className="h-4 w-4 text-green-400" />
               ) : (
-                <Copy className="w-4 h-4 text-gray-300" />
+                <Copy className="h-4 w-4 text-gray-300" />
               )}
             </button>
             <button
               onClick={shareBooking}
-              className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 transition-all hover:bg-white/20"
               title="Share booking"
             >
-              <Share2 className="w-4 h-4 text-gray-300" />
+              <Share2 className="h-4 w-4 text-gray-300" />
             </button>
           </div>
         </div>
 
-
         {/* Live repair */}
         {isLive && (
-          <div className="p-3 rounded-2xl bg-green-500/20 border border-green-500/30 mb-5">
+          <div className="mb-5 rounded-2xl border border-green-500/30 bg-green-500/20 p-3">
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Video className="w-4 h-4 text-white" />
+              <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-green-500">
+                <Video className="h-4 w-4 text-white" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-green-300 text-sm flex items-center gap-2 flex-wrap">
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-2 text-sm font-bold text-green-300">
                   LIVE Repair Eligible
-                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
                 </p>
                 {videoLink ? (
                   <a
                     href={videoLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-xl bg-green-500 text-white text-xs font-bold hover:bg-green-600 transition-all"
+                    className="mt-2 inline-flex items-center gap-2 rounded-xl bg-green-500 px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-green-600"
                   >
-                    <Video className="w-3 h-3" /> Watch Live Repair
-                    <ExternalLink className="w-3 h-3" />
+                    <Video className="h-3 w-3" /> Watch Live Repair
+                    <ExternalLink className="h-3 w-3" />
                   </a>
                 ) : (
-                  <p className="text-xs text-green-400/80 mt-1">
+                  <p className="mt-1 text-xs text-green-400/80">
                     Live link will appear via SMS & WhatsApp once repair starts.
                   </p>
                 )}
@@ -205,31 +222,31 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
         {/* Details grid */}
         <div className="space-y-3 border-t border-white/10 pt-4">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <Phone className="w-3.5 h-3.5 text-blue-400" />
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-blue-500/20">
+              <Phone className="h-3.5 w-3.5 text-blue-400" />
             </div>
             <div>
-              <p className="font-bold text-white text-sm">We'll call you soon</p>
+              <p className="text-sm font-bold text-white">We'll call you soon</p>
               <p className="text-xs text-gray-400">Confirmation via {formData.phone} within 15 min</p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0">
-              <MapPin className="w-3.5 h-3.5 text-violet-400" />
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-violet-500/20">
+              <MapPin className="h-3.5 w-3.5 text-violet-400" />
             </div>
             <div className="min-w-0">
-              <p className="font-bold text-white text-sm">Pickup within 60 minutes</p>
-              <p className="text-xs text-gray-400 leading-relaxed break-words">{addrStr}</p>
+              <p className="text-sm font-bold text-white">Pickup within 60 minutes</p>
+              <p className="break-words text-xs leading-relaxed text-gray-400">{addrStr}</p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
-              <Clock className="w-3.5 h-3.5 text-green-400" />
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-green-500/20">
+              <Clock className="h-3.5 w-3.5 text-green-400" />
             </div>
             <div>
-              <p className="font-bold text-white text-sm">Estimated: {formData.pricing?.time}</p>
+              <p className="text-sm font-bold text-white">Estimated: {formData.pricing?.time}</p>
               <p className="text-xs text-gray-400">
                 {formData.issue?.name} on {formData.brand?.name} {formData.model}
               </p>
@@ -247,29 +264,29 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
       >
         <button
           onClick={handleWhatsApp}
-          className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl bg-[#25D366] text-white font-black text-sm hover:bg-[#1fb855] transition-all shadow-lg shadow-green-200 active:scale-95"
+          className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-[#25D366] py-4 text-sm font-black text-white shadow-lg shadow-green-200 transition-all hover:bg-[#1fb855] active:scale-95"
           data-testid="whatsapp-chat-button"
         >
-          <MessageCircle className="w-5 h-5" />
+          <MessageCircle className="h-5 w-5" />
           Chat on WhatsApp
         </button>
 
-        {formData.bookingId && (
+        {rawBookingId && (
           <button
-            onClick={() => navigate(`/dashboard/${formData.bookingId}`)}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border-2 border-blue-200 text-blue-600 font-black text-sm hover:bg-blue-50 transition-all active:scale-95"
+            onClick={() => navigate(`/dashboard/${rawBookingId}`)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-blue-200 py-3.5 text-sm font-black text-blue-600 transition-all hover:bg-blue-50 active:scale-95"
             data-testid="track-repair-button"
           >
-            <ExternalLink className="w-4 h-4" />
+            <ExternalLink className="h-4 w-4" />
             Track Repair Status
           </button>
         )}
 
         <a
           href="tel:+919876543210"
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-all"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 py-3 text-sm font-bold text-gray-600 transition-all hover:bg-gray-50"
         >
-          <Phone className="w-4 h-4" /> +91 9164405840
+          <Phone className="h-4 w-4" /> +91 9164405840
         </a>
       </motion.div>
     </div>
