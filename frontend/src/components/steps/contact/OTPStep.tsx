@@ -50,6 +50,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   const [sent, setSent] = useState(false);
   const [countdown, setCountdown] = useState(OTP_EXPIRY_SECS);
   const [canResend, setCanResend] = useState(false);
+  const [hiddenValue, setHiddenValue] = useState('');
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const hiddenOtpRef = useRef<HTMLInputElement | null>(null);
@@ -57,6 +58,22 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const webOtpAbortRef = useRef<AbortController | null>(null);
   const isVerifyingRef = useRef(false);
+
+  const applyOtpCode = useCallback((raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 6);
+    if (!digits) return;
+
+    setHiddenValue(digits);
+
+    const next = Array.from({ length: 6 }, (_, i) => digits[i] ?? '');
+    setOtp(next);
+
+    if (digits.length === 6) {
+      setTimeout(() => {
+        inputRefs.current[5]?.focus();
+      }, 50);
+    }
+  }, []);
 
   const startCountdown = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -84,18 +101,10 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     webOtpAbortRef.current = null;
   }, []);
 
-  const applyOtpCode = useCallback((raw: string) => {
-    const digits = raw.replace(/\D/g, '').slice(0, 6);
-    if (!digits) return;
-
-    const next = Array.from({ length: 6 }, (_, i) => digits[i] ?? '');
-    setOtp(next);
-
-    if (digits.length === 6) {
-      setTimeout(() => {
-        inputRefs.current[5]?.focus();
-      }, 50);
-    }
+  const focusHiddenOtp = useCallback(() => {
+    requestAnimationFrame(() => {
+      hiddenOtpRef.current?.focus();
+    });
   }, []);
 
   const verifyOTP = useCallback(
@@ -135,6 +144,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         }
 
         setOtp(['', '', '', '', '', '']);
+        setHiddenValue('');
         setTimeout(() => inputRefs.current[0]?.focus(), 50);
       } finally {
         setVerifying(false);
@@ -156,7 +166,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
 
     try {
       const credential = (await navigator.credentials.get({
-        // @ts-expect-error Web OTP is not available in all TS libs
+        // @ts-expect-error Web OTP API is not in all TS libs
         otp: { transport: ['sms'] },
         signal: controller.signal,
       })) as any;
@@ -165,7 +175,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         applyOtpCode(String(credential.code));
       }
     } catch {
-      // ignore abort / unsupported
+      // Ignore abort / unsupported
     } finally {
       if (webOtpAbortRef.current === controller) {
         webOtpAbortRef.current = null;
@@ -173,36 +183,12 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     }
   }, [applyOtpCode, stopWebOtpListener]);
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      stopWebOtpListener();
-    };
-  }, [stopWebOtpListener]);
-
-  useEffect(() => {
-    if (hasSentRef.current) return;
-    hasSentRef.current = true;
-    void sendOTP();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!confirmation) return;
-    void startWebOtpListener();
-    return () => stopWebOtpListener();
-  }, [confirmation, startWebOtpListener, stopWebOtpListener]);
-
-  useEffect(() => {
-    if (otp.every((d) => d !== '') && confirmation && !verifying) {
-      void verifyOTP(otp.join(''));
-    }
-  }, [otp, confirmation, verifying, verifyOTP]);
-
-  const sendOTP = async () => {
+  const sendOTP = useCallback(async () => {
     setLoading(true);
     setError('');
     setSent(false);
+    setHiddenValue('');
+    setOtp(['', '', '', '', '', '']);
 
     try {
       destroyVerifier();
@@ -214,6 +200,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       startCountdown();
 
       setTimeout(() => {
+        focusHiddenOtp();
         inputRefs.current[0]?.focus();
       }, 150);
     } catch (err: any) {
@@ -232,11 +219,35 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [focusHiddenOtp, phone, startCountdown]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      stopWebOtpListener();
+    };
+  }, [stopWebOtpListener]);
+
+  useEffect(() => {
+    if (hasSentRef.current) return;
+    hasSentRef.current = true;
+    void sendOTP();
+  }, [sendOTP]);
+
+  useEffect(() => {
+    if (!confirmation) return;
+    void startWebOtpListener();
+    return () => stopWebOtpListener();
+  }, [confirmation, startWebOtpListener, stopWebOtpListener]);
+
+  useEffect(() => {
+    if (otp.every((d) => d !== '') && confirmation && !verifying) {
+      void verifyOTP(otp.join(''));
+    }
+  }, [otp, confirmation, verifying, verifyOTP]);
 
   const handleResend = () => {
     hasSentRef.current = false;
-    setOtp(['', '', '', '', '', '']);
     setError('');
     void sendOTP();
   };
@@ -246,7 +257,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
 
     const digitsOnly = val.replace(/\D/g, '');
 
-    // If the browser/autofill drops the full OTP into one field, spread it across all boxes.
     if (digitsOnly.length > 1) {
       applyOtpCode(digitsOnly);
       return;
@@ -290,7 +300,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         defaultValue=""
         onInput={handleHiddenChange}
         onChange={handleHiddenChange}
-        className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
+        className="absolute left-0 top-0 h-px w-px opacity-0"
       />
 
       <div id="recaptcha-root" />
@@ -320,14 +330,18 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
             ref={(el) => {
               inputRefs.current[i] = el;
             }}
-            type="tel"
+            type="text"
             inputMode="numeric"
             autoComplete={i === 0 ? 'one-time-code' : 'off'}
-            maxLength={6}
+            maxLength={i === 0 ? 6 : 1}
             value={digit}
+            onInput={(e) => handleChange(i, e.currentTarget.value)}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
             disabled={loading || verifying}
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             className={`h-14 w-11 rounded-2xl border-2 text-center text-2xl font-black outline-none transition-all sm:h-14 sm:w-12
               ${digit ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-900'}
               ${loading || verifying ? 'cursor-not-allowed opacity-50' : 'focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50'}
