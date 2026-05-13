@@ -1171,28 +1171,6 @@ export const HomePage: React.FC = () => {
               transition={{ duration: 0.65, delay: 0.08 }}
               className="mx-auto mt-10 max-w-3xl px-1 sm:px-0"
             >
-              <div className="rounded-[30px] border border-white/10 bg-white/5 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <div className="flex h-14 w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4">
-                    <Search className="h-4 w-4 shrink-0 text-cyan-300" />
-                    <input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search your phone model..."
-                      className="h-full w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35"
-                      aria-label="Search your phone model"
-                    />
-                  </div>
-
-                  <AnimatedCtaButton
-                    onClick={() => navigate(repairPath)}
-                    className="w-full sm:min-w-[170px]"
-                  >
-                    <span>Search</span>
-                    <ArrowRight className="h-4 w-4" />
-                  </AnimatedCtaButton>
-                </div>
-              </div>
 
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-white/45">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5">
