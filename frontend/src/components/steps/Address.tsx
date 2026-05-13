@@ -1,16 +1,21 @@
-import { useMemo, useState, useRef, useCallback } from 'react';
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import {
   ChevronLeft,
   MapPin,
   Navigation,
   Loader2,
-  ZoomIn,
-  ZoomOut,
-  LocateFixed,
   Check,
   X,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  Home,
+  Building2,
+  Milestone,
 } from 'lucide-react';
 import type { AddressFields } from '../../types';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AddressStepProps {
   address?: Partial<AddressFields> | string;
@@ -39,415 +44,555 @@ const toAddressFields = (value?: Partial<AddressFields> | string): AddressFields
   };
 };
 
-const cleanText = (value?: string | null) =>
-  (value || '')
-    .replace(/\s+/g, ' ')
-    .replace(/^[,\s-]+|[,\s-]+$/g, '')
-    .trim();
-
-type GeoAddress = {
-  doorNumber: string;
-  street: string;
-  floor: string;
-  landmark: string;
-  city: string;
-  pincode: string;
-};
-
 type LatLng = { lat: number; lng: number };
 
-const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+// ─── Google Maps loader ────────────────────────────────────────────────────
 
-// ── Tile / projection helpers ─────────────────────────────────────────────
-const TILE_SIZE = 256;
+// IMPORTANT: Replace this with your actual Google Maps API key
+const GOOGLE_MAPS_API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY';
 
-function latLngToPixel(lat: number, lng: number, zoom: number) {
-  const scale = TILE_SIZE * Math.pow(2, zoom);
-  const x = ((lng + 180) / 360) * scale;
-  const sinLat = Math.sin((lat * Math.PI) / 180);
-  const y = (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale;
-  return { x, y };
-}
+let mapsLoaded = false;
+let mapsLoading = false;
+const mapsCallbacks: Array<() => void> = [];
 
-function pixelToLatLng(px: number, py: number, zoom: number): LatLng {
-  const scale = TILE_SIZE * Math.pow(2, zoom);
-  const lng = (px / scale) * 360 - 180;
-  const n = Math.PI - (2 * Math.PI * py) / scale;
-  const lat = (180 / Math.PI) * Math.atan(Math.sinh(n));
-  return { lat, lng };
-}
+function loadGoogleMaps(apiKey: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (mapsLoaded) { resolve(); return; }
+    if (mapsLoading) { mapsCallbacks.push(resolve); return; }
+    mapsLoading = true;
+    mapsCallbacks.push(resolve);
 
-const reverseGeocode = async (latitude: number, longitude: number): Promise<GeoAddress> => {
-  const url =
-    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18` +
-    `&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}`;
+    (window as any).initGoogleMaps = () => {
+      mapsLoaded = true;
+      mapsCallbacks.forEach((cb) => cb());
+      mapsCallbacks.length = 0;
+    };
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { Accept: 'application/json', 'Accept-Language': 'en' },
-    cache: 'no-store',
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMaps`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
   });
+}
 
-  if (!response.ok) throw new Error('Reverse geocoding failed');
+// ─── Reverse geocode using Google ─────────────────────────────────────────
 
-  const data = await response.json();
-  const addr = data?.address || {};
+async function reverseGeocodeGoogle(lat: number, lng: number): Promise<AddressFields> {
+  return new Promise((resolve) => {
+    const geocoder = new (window as any).google.maps.Geocoder();
+    geocoder.geocode({ location: { lat, lng } }, (results: any[], status: string) => {
+      if (status !== 'OK' || !results || results.length === 0) {
+        resolve(emptyAddress);
+        return;
+      }
 
-  const doorNumber =
-    cleanText(addr.house_number) || cleanText(addr.unit) || cleanText(addr.building) || '';
+      const result = results[0];
+      const components = result.address_components as any[];
 
-  const street =
-    cleanText(addr.road) ||
-    cleanText(addr.pedestrian) ||
-    cleanText(addr.neighbourhood) ||
-    cleanText(addr.suburb) ||
-    cleanText(addr.city_district) ||
-    cleanText(addr.residential) ||
-    '';
+      const get = (...types: string[]) =>
+        components.find((c: any) => types.some((t) => c.types.includes(t)))?.long_name || '';
+      const getShort = (...types: string[]) =>
+        components.find((c: any) => types.some((t) => c.types.includes(t)))?.short_name || '';
 
-  const landmark =
-    cleanText(addr.neighbourhood) ||
-    cleanText(addr.suburb) ||
-    cleanText(addr.city_district) ||
-    cleanText(addr.quarter) ||
-    cleanText(addr.estate) ||
-    cleanText(addr.amenity) ||
-    '';
+      const doorNumber = get('street_number', 'premise', 'subpremise');
+      const street =
+        get('route') ||
+        get('neighborhood') ||
+        get('sublocality_level_1') ||
+        get('sublocality');
+      const landmark = get('neighborhood', 'sublocality_level_2', 'sublocality_level_1') || get('premise');
+      const city = get('locality', 'administrative_area_level_2');
+      const pincode = get('postal_code');
 
-  const city =
-    cleanText(addr.city) ||
-    cleanText(addr.town) ||
-    cleanText(addr.village) ||
-    cleanText(addr.municipality) ||
-    cleanText(addr.city_district) ||
-    cleanText(addr.county) ||
-    cleanText(addr.state_district) ||
-    cleanText(addr.state) ||
-    '';
+      resolve({ doorNumber, street, floor: '', landmark, city, pincode });
+    });
+  });
+}
 
-  const pincode = cleanText(addr.postcode) || '';
-  const displayName = cleanText(data?.display_name);
-  const fallbackStreet = street || displayName.split(',').slice(0, 2).join(', ');
+// ─── MapPicker (full-screen Google Map, Zomato/Uber style) ────────────────
 
-  return { doorNumber, street: fallbackStreet, floor: '', landmark, city, pincode };
-};
+declare global {
+  interface Window {
+    google: any;
+  }
+}
 
-// ── Inline draggable map ──────────────────────────────────────────────────
-const MAP_H = 280;
-
-const InlineMapPicker = ({
-  center,
-  zoom,
-  loading,
-  onPick,
-  onZoomIn,
-  onZoomOut,
-  onRecenter,
+const MapPicker = ({
+  initialCenter,
   onConfirm,
   onClose,
 }: {
-  center: LatLng;
-  zoom: number;
-  loading: boolean;
-  onPick: (coords: LatLng) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onRecenter: () => void;
-  onConfirm: () => void;
+  initialCenter: LatLng;
+  onConfirm: (coords: LatLng, address: AddressFields) => void;
   onClose: () => void;
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{
-    startX: number;
-    startY: number;
-    startLat: number;
-    startLng: number;
-    dragging: boolean;
-  } | null>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<any>(null);
 
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      e.currentTarget.setPointerCapture(e.pointerId);
-      dragRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        startLat: center.lat,
-        startLng: center.lng,
-        dragging: false,
-      };
-    },
-    [center],
-  );
+  const [center, setCenter] = useState<LatLng>(initialCenter);
+  const [address, setAddress] = useState<AddressFields>(emptyAddress);
+  const [loading, setLoading] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [mapsReady, setMapsReady] = useState(mapsLoaded);
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const onPointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!dragRef.current) return;
-      const dx = e.clientX - dragRef.current.startX;
-      const dy = e.clientY - dragRef.current.startY;
+  // Load Google Maps
+  useEffect(() => {
+    if (mapsLoaded) { setMapsReady(true); return; }
+    loadGoogleMaps(GOOGLE_MAPS_API_KEY).then(() => setMapsReady(true));
+  }, []);
 
-      if (!dragRef.current.dragging && Math.hypot(dx, dy) > 4) {
-        dragRef.current.dragging = true;
-      }
-      if (!dragRef.current.dragging) return;
+  // Init map
+  useEffect(() => {
+    if (!mapsReady || !mapRef.current || mapInstanceRef.current) return;
 
-      const origin = latLngToPixel(dragRef.current.startLat, dragRef.current.startLng, zoom);
-      const next = pixelToLatLng(origin.x - dx, origin.y - dy, zoom);
-      onPick({ lat: clamp(next.lat, -85, 85), lng: clamp(next.lng, -180, 180) });
-    },
-    [zoom, onPick],
-  );
+    const map = new window.google.maps.Map(mapRef.current, {
+      center: initialCenter,
+      zoom: 17,
+      disableDefaultUI: true,
+      styles: [
+        { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
+        { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+        { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+        { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
+        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+        { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+        { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
+        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9e8ff' }] },
+        { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#e5f5e5' }] },
+        { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
+      ],
+    });
 
-  const onPointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      if (!dragRef.current) return;
-      const wasDragging = dragRef.current.dragging;
-      dragRef.current = null;
+    mapInstanceRef.current = map;
 
-      // Tap (not drag) → move pin to tapped spot
-      if (!wasDragging) {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const c = latLngToPixel(center.lat, center.lng, zoom);
-        const next = pixelToLatLng(c.x + (x - rect.width / 2), c.y + (y - rect.height / 2), zoom);
-        onPick({ lat: clamp(next.lat, -85, 85), lng: clamp(next.lng, -180, 180) });
-      }
-    },
-    [center, zoom, onPick],
-  );
+    // Listen for map drag end — update center
+    map.addListener('dragend', async () => {
+      const c = map.getCenter();
+      const newCenter = { lat: c.lat(), lng: c.lng() };
+      setCenter(newCenter);
+      setLoading(true);
+      const detected = await reverseGeocodeGoogle(newCenter.lat, newCenter.lng);
+      setAddress(detected);
+      setLoading(false);
+    });
 
-  // Build visible tiles
-  const c = latLngToPixel(center.lat, center.lng, zoom);
-  const tileX0 = Math.floor(c.x / TILE_SIZE);
-  const tileY0 = Math.floor(c.y / TILE_SIZE);
-  const tiles = [];
-  for (let dy = -2; dy <= 2; dy++) {
-    for (let dx = -2; dx <= 2; dx++) {
-      const tx = tileX0 + dx;
-      const ty = tileY0 + dy;
-      tiles.push({
-        tx,
-        ty,
-        left: Math.round(c.x % 1 === 0 ? 0 : 0) + (tx - tileX0) * TILE_SIZE - (c.x - tileX0 * TILE_SIZE) + 50 + '%',
-        // use pixel offsets relative to map center instead:
-        offsetLeft: (tx * TILE_SIZE - c.x) + '??', // recalc below
-        key: `${tx}-${ty}-${zoom}`,
-      });
-    }
-  }
+    // Also on idle after zoom
+    map.addListener('idle', async () => {
+      const c = map.getCenter();
+      const newCenter = { lat: c.lat(), lng: c.lng() };
+      setCenter(newCenter);
+    });
 
-  // Simpler tile positioning: offset from center
-  const tilesClean = [];
-  for (let dy = -2; dy <= 2; dy++) {
-    for (let dx = -2; dx <= 2; dx++) {
-      const tx = tileX0 + dx;
-      const ty = tileY0 + dy;
-      // pixel position of tile origin relative to map center
-      const left = tx * TILE_SIZE - c.x + (containerRef.current?.offsetWidth ?? 360) / 2;
-      const top = ty * TILE_SIZE - c.y + MAP_H / 2;
-      tilesClean.push({ tx, ty, left, top, key: `${tx}-${ty}-${zoom}` });
-    }
-  }
+    // Initial reverse geocode
+    (async () => {
+      setLoading(true);
+      const detected = await reverseGeocodeGoogle(initialCenter.lat, initialCenter.lng);
+      setAddress(detected);
+      setLoading(false);
+    })();
+  }, [mapsReady, initialCenter]);
 
-  // We need container width for tile positioning; use CSS calc trick instead
-  // Use a wrapper with overflow:hidden and absolute children
-  const mapW = containerRef.current?.offsetWidth ?? 360;
-  const tilesForRender = [];
-  for (let dy = -2; dy <= 2; dy++) {
-    for (let dx = -2; dx <= 2; dx++) {
-      const tx = tileX0 + dx;
-      const ty = tileY0 + dy;
-      const left = tx * TILE_SIZE - c.x + mapW / 2;
-      const top = ty * TILE_SIZE - c.y + MAP_H / 2;
-      tilesForRender.push({ tx, ty, left, top, key: `${tx}-${ty}-${zoom}` });
-    }
-  }
+  // Places Autocomplete
+  useEffect(() => {
+    if (!mapsReady || !searchInputRef.current || autocompleteRef.current) return;
+    const ac = new window.google.maps.places.Autocomplete(searchInputRef.current, {
+      fields: ['geometry', 'address_components', 'formatted_address'],
+    });
+    autocompleteRef.current = ac;
+
+    ac.addListener('place_changed', async () => {
+      const place = ac.getPlace();
+      if (!place.geometry?.location) return;
+
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      const newCenter = { lat, lng };
+
+      mapInstanceRef.current?.panTo(newCenter);
+      mapInstanceRef.current?.setZoom(17);
+      setCenter(newCenter);
+
+      setLoading(true);
+      const detected = await reverseGeocodeGoogle(lat, lng);
+      setAddress(detected);
+      setLoading(false);
+      setSearchQuery(place.formatted_address || '');
+    });
+  }, [mapsReady]);
+
+  const handleMyLocation = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        const newCenter = { lat: coords.latitude, lng: coords.longitude };
+        mapInstanceRef.current?.panTo(newCenter);
+        mapInstanceRef.current?.setZoom(17);
+        setCenter(newCenter);
+        setLoading(true);
+        const detected = await reverseGeocodeGoogle(newCenter.lat, newCenter.lng);
+        setAddress(detected);
+        setLoading(false);
+        setGeoLoading(false);
+      },
+      () => setGeoLoading(false),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
+  }, []);
+
+  const handleConfirm = useCallback(() => {
+    onConfirm(center, address);
+  }, [center, address, onConfirm]);
+
+  const displayStreet = address.street
+    ? `${address.doorNumber ? address.doorNumber + ', ' : ''}${address.street}`
+    : loading
+    ? 'Detecting location…'
+    : 'Move the map to select location';
+
+  const displayCity = address.city
+    ? `${address.city}${address.pincode ? ' - ' + address.pincode : ''}`
+    : '';
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-600">
-            Select on map
-          </p>
-          <p className="mt-0.5 text-xs text-gray-500">Drag to pan · tap to place pin</p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100"
+    <div className="fixed inset-0 z-50 flex flex-col bg-white" style={{ fontFamily: 'system-ui, sans-serif' }}>
+      {/* ── Top search bar (Zomato style) ── */}
+      <div
+        className="absolute top-0 left-0 right-0 z-30"
+        style={{ padding: 'clamp(10px, 3vw, 16px)', paddingBottom: 0 }}
+      >
+        <div
+          className="flex items-center gap-3 bg-white shadow-lg"
+          style={{
+            borderRadius: 'clamp(14px, 3.5vw, 20px)',
+            padding: 'clamp(8px, 2.5vw, 12px) clamp(12px, 3vw, 16px)',
+          }}
         >
-          <X className="h-3.5 w-3.5" />
-        </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <ChevronLeft style={{ width: 'clamp(18px, 5vw, 22px)', height: 'clamp(18px, 5vw, 22px)' }} />
+          </button>
+          <Search
+            className="shrink-0 text-gray-400"
+            style={{ width: 'clamp(14px, 3.5vw, 18px)', height: 'clamp(14px, 3.5vw, 18px)' }}
+          />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search for area, street name…"
+            className="flex-1 outline-none text-gray-900 placeholder:text-gray-400 bg-transparent"
+            style={{ fontSize: 'clamp(13px, 3.5vw, 15px)' }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="shrink-0 text-gray-400"
+            >
+              <X style={{ width: 'clamp(14px, 3.5vw, 16px)', height: 'clamp(14px, 3.5vw, 16px)' }} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Map canvas */}
-      <div
-        ref={containerRef}
-        className="relative select-none overflow-hidden bg-slate-100"
-        style={{ height: `${MAP_H}px`, cursor: 'grab', touchAction: 'none' }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={() => {
-          dragRef.current = null;
-        }}
-      >
-        {/* OSM tiles */}
-        {tilesForRender.map(({ tx, ty, left, top, key }) => (
-          <img
-            key={key}
-            src={`https://tile.openstreetmap.org/${zoom}/${tx}/${ty}.png`}
-            alt=""
-            draggable={false}
-            className="absolute h-[256px] w-[256px] pointer-events-none"
-            style={{ left: `${left}px`, top: `${top}px` }}
-          />
-        ))}
+      {/* ── Google Map fills entire screen ── */}
+      <div className="flex-1 relative">
+        {!mapsReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-100 z-10">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="animate-spin text-blue-600" style={{ width: 32, height: 32 }} />
+              <p className="text-sm text-gray-500 font-medium">Loading map…</p>
+            </div>
+          </div>
+        )}
+        <div ref={mapRef} className="absolute inset-0" />
 
-        {/* Fixed center pin */}
-        <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full">
+        {/* ── Center pin (fixed, Uber style) ── */}
+        <div
+          className="absolute left-1/2 z-20 pointer-events-none"
+          style={{
+            top: '50%',
+            transform: 'translate(-50%, -100%)',
+            marginTop: '-12px', // compensate for bottom sheet push
+          }}
+        >
           <div className="flex flex-col items-center">
-            <div className="mb-1 rounded-full bg-white px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-widest text-gray-700 shadow">
-              Your pin
+            {/* Animated address bubble */}
+            <div
+              className="mb-2 bg-white shadow-lg text-gray-800 font-semibold text-center max-w-[200px]"
+              style={{
+                padding: 'clamp(6px, 1.5vw, 8px) clamp(10px, 2.5vw, 14px)',
+                borderRadius: 'clamp(8px, 2vw, 12px)',
+                fontSize: 'clamp(10px, 2.5vw, 12px)',
+                lineHeight: 1.3,
+              }}
+            >
+              {loading ? (
+                <span className="flex items-center gap-1.5 text-gray-400">
+                  <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} />
+                  Locating…
+                </span>
+              ) : (
+                <span className="line-clamp-2">{displayStreet || 'Move map to pick location'}</span>
+              )}
+              {/* Bubble triangle */}
+              <div
+                className="absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-full w-0 h-0"
+                style={{
+                  borderLeft: '6px solid transparent',
+                  borderRight: '6px solid transparent',
+                  borderTop: '7px solid white',
+                }}
+              />
             </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 shadow-[0_0_0_7px_rgba(37,99,235,0.18)]">
-              <MapPin className="h-6 w-6 text-white" />
+
+            {/* Pin icon */}
+            <div
+              className="flex items-center justify-center bg-blue-600 shadow-[0_0_0_8px_rgba(37,99,235,0.18)]"
+              style={{
+                width: 'clamp(40px, 11vw, 52px)',
+                height: 'clamp(40px, 11vw, 52px)',
+                borderRadius: '50% 50% 50% 8px',
+                transform: 'rotate(45deg)',
+              }}
+            >
+              <MapPin
+                className="text-white"
+                style={{
+                  width: 'clamp(20px, 5.5vw, 26px)',
+                  height: 'clamp(20px, 5.5vw, 26px)',
+                  transform: 'rotate(-45deg)',
+                }}
+              />
             </div>
-            <div className="mt-0.5 h-2 w-2 rounded-full bg-blue-600 opacity-80" />
+            {/* Pin shadow */}
+            <div
+              className="mt-1 bg-blue-900/20 rounded-full"
+              style={{
+                width: 'clamp(16px, 4.5vw, 20px)',
+                height: 'clamp(4px, 1vw, 6px)',
+                filter: 'blur(2px)',
+              }}
+            />
           </div>
         </div>
 
-        {/* Zoom controls */}
-        <div className="absolute left-2 top-2 z-20 flex flex-col gap-1.5">
-          <button
-            type="button"
-            onClick={onZoomIn}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50"
-          >
-            <ZoomIn className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onZoomOut}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50"
-          >
-            <ZoomOut className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* My location button */}
-        <div className="absolute bottom-2 left-2 z-20">
-          <button
-            type="button"
-            onClick={onRecenter}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white"
-          >
-            <LocateFixed className="h-3.5 w-3.5 text-blue-600" />
-            My location
-          </button>
-        </div>
-
-        {/* Coords badge */}
-        <div className="absolute bottom-2 right-2 z-20 rounded-xl bg-white/90 px-2.5 py-1 text-[10px] font-medium text-gray-600 shadow-sm">
-          {center.lat.toFixed(5)}, {center.lng.toFixed(5)}
-        </div>
-      </div>
-
-      {/* Confirm footer */}
-      <div className="border-t border-gray-100 px-4 py-3">
-        <p className="mb-2.5 text-xs text-gray-500">
-          Pan the map so the pin sits on your exact pickup spot, then confirm.
-        </p>
+        {/* ── My Location button (Uber style, bottom-right) ── */}
         <button
           type="button"
-          onClick={onConfirm}
-          disabled={loading}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={handleMyLocation}
+          className="absolute right-4 bg-white shadow-lg text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center z-20"
+          style={{
+            bottom: 'clamp(260px, 38vw, 310px)',
+            width: 'clamp(40px, 11vw, 48px)',
+            height: 'clamp(40px, 11vw, 48px)',
+            borderRadius: 'clamp(10px, 2.5vw, 14px)',
+          }}
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          {loading ? 'Detecting address…' : 'Use this location'}
+          {geoLoading ? (
+            <Loader2
+              className="animate-spin text-blue-600"
+              style={{ width: 'clamp(16px, 4vw, 20px)', height: 'clamp(16px, 4vw, 20px)' }}
+            />
+          ) : (
+            <Navigation
+              style={{ width: 'clamp(16px, 4vw, 20px)', height: 'clamp(16px, 4vw, 20px)' }}
+            />
+          )}
         </button>
+      </div>
+
+      {/* ── Bottom Sheet (Zomato / Uber style) ── */}
+      <div
+        className="absolute bottom-0 left-0 right-0 z-30 bg-white"
+        style={{
+          borderRadius: 'clamp(20px, 5vw, 28px) clamp(20px, 5vw, 28px) 0 0',
+          boxShadow: '0 -8px 40px rgba(15,23,42,0.12)',
+          transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1)',
+          maxHeight: sheetExpanded ? '70vh' : 'clamp(200px, 36vw, 260px)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <button
+            type="button"
+            onClick={() => setSheetExpanded((v) => !v)}
+            className="flex flex-col items-center gap-1"
+          >
+            <div className="w-10 h-1 rounded-full bg-gray-200" />
+            {sheetExpanded ? (
+              <ChevronDown className="text-gray-400" style={{ width: 14, height: 14 }} />
+            ) : (
+              <ChevronUp className="text-gray-400" style={{ width: 14, height: 14 }} />
+            )}
+          </button>
+        </div>
+
+        <div style={{ padding: '0 clamp(14px, 4vw, 20px) clamp(16px, 4vw, 24px)', overflowY: 'auto', maxHeight: 'calc(70vh - 48px)' }}>
+          {/* Location preview row */}
+          <div className="flex items-start gap-3 mb-4">
+            <div
+              className="shrink-0 bg-blue-50 flex items-center justify-center"
+              style={{
+                width: 'clamp(38px, 10vw, 46px)',
+                height: 'clamp(38px, 10vw, 46px)',
+                borderRadius: 'clamp(10px, 2.5vw, 14px)',
+              }}
+            >
+              <MapPin className="text-blue-600" style={{ width: 'clamp(16px, 4.5vw, 20px)', height: 'clamp(16px, 4.5vw, 20px)' }} />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p
+                  className="font-black text-gray-950 truncate"
+                  style={{ fontSize: 'clamp(13px, 3.5vw, 16px)' }}
+                >
+                  {loading ? 'Detecting…' : (address.street || 'Move map to pick location')}
+                </p>
+                {loading && <Loader2 className="shrink-0 animate-spin text-blue-500" style={{ width: 14, height: 14 }} />}
+              </div>
+              {displayCity && (
+                <p
+                  className="text-gray-500 truncate mt-0.5"
+                  style={{ fontSize: 'clamp(11px, 2.8vw, 13px)' }}
+                >
+                  {displayCity}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Expanded: quick address type tags */}
+          {sheetExpanded && (
+            <div className="flex gap-2 flex-wrap mb-4">
+              {[
+                { icon: Home, label: 'Home' },
+                { icon: Building2, label: 'Work' },
+                { icon: Milestone, label: 'Other' },
+              ].map(({ icon: Icon, label }) => (
+                <button
+                  key={label}
+                  type="button"
+                  className="inline-flex items-center gap-1.5 border border-gray-200 bg-gray-50 text-gray-700 font-semibold hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all"
+                  style={{
+                    padding: 'clamp(5px, 1.2vw, 8px) clamp(10px, 2.5vw, 14px)',
+                    borderRadius: 'clamp(8px, 2vw, 12px)',
+                    fontSize: 'clamp(11px, 2.8vw, 13px)',
+                  }}
+                >
+                  <Icon style={{ width: 'clamp(12px, 3vw, 15px)', height: 'clamp(12px, 3vw, 15px)' }} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Confirm CTA */}
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={loading || (!address.street && !address.city)}
+            className="w-full flex items-center justify-center gap-2 font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+            style={{
+              borderRadius: 'clamp(14px, 3.5vw, 20px)',
+              padding: 'clamp(13px, 3.5vw, 16px)',
+              fontSize: 'clamp(13px, 3.5vw, 15px)',
+              boxShadow: '0 4px 20px rgba(37,99,235,0.35)',
+            }}
+          >
+            <Check style={{ width: 'clamp(16px, 4vw, 18px)', height: 'clamp(16px, 4vw, 18px)' }} />
+            Confirm Pickup Location
+          </button>
+        </div>
       </div>
     </div>
   );
 };
 
+// ─── Field component ─────────────────────────────────────────────────────────
+
+const Field = ({
+  label,
+  value,
+  onChange,
+  placeholder,
+  required,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  required?: boolean;
+}) => (
+  <label className="block space-y-1.5">
+    <span
+      className="block font-bold uppercase tracking-wide text-gray-500"
+      style={{ fontSize: 'clamp(9px, 2.2vw, 11px)' }}
+    >
+      {label}
+      {required && <span className="text-red-500 ml-0.5">*</span>}
+    </span>
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full border border-gray-200 bg-gray-50 outline-none transition-all placeholder:text-gray-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+      style={{
+        borderRadius: 'clamp(10px, 2.5vw, 16px)',
+        padding: 'clamp(10px, 2.5vw, 13px) clamp(12px, 3vw, 16px)',
+        fontSize: 'clamp(12px, 3.2vw, 14px)',
+      }}
+    />
+  </label>
+);
+
+// ─── Main AddressStep ─────────────────────────────────────────────────────────
+
 export const AddressStep: React.FC<AddressStepProps> = ({ address, onSubmit, goBack }) => {
   const [fields, setFields] = useState<AddressFields>(() => toAddressFields(address));
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState('');
-  const [showMap, setShowMap] = useState(false);
-  const [mapLoading, setMapLoading] = useState(false);
-  const [mapCenter, setMapCenter] = useState<LatLng>({ lat: 12.9716, lng: 77.5946 });
-  const [mapZoom, setMapZoom] = useState(16);
+  const [locationSet, setLocationSet] = useState(false);
+  const [initialCenter] = useState<LatLng>({ lat: 12.9716, lng: 77.5946 }); // Bengaluru default
 
   const update = (key: keyof AddressFields, value: string) =>
     setFields((prev) => ({ ...prev, [key]: value }));
 
   const canSubmit = useMemo(
-    () =>
-      Boolean(
-        fields.doorNumber.trim() &&
-          fields.street.trim() &&
-          fields.city.trim() &&
-          fields.pincode.trim(),
-      ),
+    () => Boolean(fields.doorNumber.trim() && fields.street.trim() && fields.city.trim() && fields.pincode.trim()),
     [fields],
   );
 
-  const fillAddressFromCoords = async (latitude: number, longitude: number) => {
-    const detected = await reverseGeocode(latitude, longitude);
+  const handleOpenMap = () => {
+    setError('');
+    setShowMapPicker(true);
+  };
+
+  const handleMapConfirm = (coords: LatLng, detected: AddressFields) => {
     setFields((prev) => ({
-      ...prev,
-      doorNumber: prev.doorNumber || detected.doorNumber,
+      doorNumber: detected.doorNumber || prev.doorNumber,
       street: detected.street || prev.street,
       floor: prev.floor,
       landmark: detected.landmark || prev.landmark,
       city: detected.city || prev.city,
       pincode: detected.pincode || prev.pincode,
     }));
-    if (!detected.street && !detected.city && !detected.pincode) {
-      setError('We found your area, but not a full address. Please fill the rest manually.');
-    }
-  };
-
-  const handleAutoDetect = () => {
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser.');
-      return;
-    }
-    setError('');
-    setLocating(true);
-
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setMapCenter({ lat: coords.latitude, lng: coords.longitude });
-        setShowMap(true);
-        setLocating(false);
-      },
-      () => {
-        setError('Location access denied. Please enter your address manually.');
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    );
-  };
-
-  const confirmMapLocation = async () => {
-    setMapLoading(true);
-    setError('');
-    try {
-      await fillAddressFromCoords(mapCenter.lat, mapCenter.lng);
-      setShowMap(false);
-    } catch {
-      setError(
-        'Could not detect your exact location. Please choose another point or fill manually.',
-      );
-    } finally {
-      setMapLoading(false);
-    }
+    setLocationSet(true);
+    setShowMapPicker(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -457,143 +602,191 @@ export const AddressStep: React.FC<AddressStepProps> = ({ address, onSubmit, goB
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-5 rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
-    >
-      <div className="text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-blue-100 bg-blue-50">
-          <MapPin className="h-8 w-8 text-blue-600" />
-        </div>
-        <h3 className="text-xl font-black text-gray-950">Pickup Address</h3>
-        <p className="mt-1 text-sm text-gray-500">We will send a porter to collect your device</p>
-      </div>
+    <>
+      {/* ── Full-screen map picker overlay ── */}
+      {showMapPicker && (
+        <MapPicker
+          initialCenter={initialCenter}
+          onConfirm={handleMapConfirm}
+          onClose={() => setShowMapPicker(false)}
+        />
+      )}
 
-      {/* Auto-detect button */}
-      <button
-        type="button"
-        onClick={handleAutoDetect}
-        disabled={locating}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition-all hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-70"
+      {/* ── Address form ── */}
+      <form
+        onSubmit={handleSubmit}
+        className="border border-gray-200 bg-white shadow-sm"
+        style={{
+          borderRadius: 'clamp(16px, 4.5vw, 28px)',
+          padding: 'clamp(16px, 4.5vw, 24px)',
+        }}
       >
-        {locating ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Navigation className="h-4 w-4" />
-        )}
-        {locating ? 'Detecting location…' : 'Auto-detect my location'}
-      </button>
-
-      {/* Inline map — shown right below the button after location is detected */}
-      {showMap && (
-        <InlineMapPicker
-          center={mapCenter}
-          zoom={mapZoom}
-          loading={mapLoading}
-          onPick={setMapCenter}
-          onZoomIn={() => setMapZoom((z) => Math.min(z + 1, 19))}
-          onZoomOut={() => setMapZoom((z) => Math.max(z - 1, 10))}
-          onRecenter={() => {
-            if (!navigator.geolocation) return;
-            navigator.geolocation.getCurrentPosition(
-              ({ coords }) =>
-                setMapCenter({ lat: coords.latitude, lng: coords.longitude }),
-              () => setError('Location access denied. Please allow it to recenter.'),
-              { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-            );
-          }}
-          onConfirm={confirmMapLocation}
-          onClose={() => setShowMap(false)}
-        />
-      )}
-
-      {error && (
-        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+        {/* Header */}
+        <div className="text-center" style={{ marginBottom: 'clamp(14px, 4vw, 20px)' }}>
+          <div
+            className="mx-auto flex items-center justify-center border border-blue-100 bg-blue-50"
+            style={{
+              width: 'clamp(48px, 13vw, 64px)',
+              height: 'clamp(48px, 13vw, 64px)',
+              borderRadius: '50%',
+              marginBottom: 'clamp(10px, 3vw, 16px)',
+            }}
+          >
+            <MapPin className="text-blue-600" style={{ width: 'clamp(22px, 6vw, 30px)', height: 'clamp(22px, 6vw, 30px)' }} />
+          </div>
+          <h3 className="font-black text-gray-950" style={{ fontSize: 'clamp(17px, 4.5vw, 22px)' }}>
+            Pickup Address
+          </h3>
+          <p className="text-gray-500" style={{ marginTop: 4, fontSize: 'clamp(11px, 2.8vw, 14px)' }}>
+            We'll send a porter to collect your device
+          </p>
         </div>
-      )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field
-          label="Door / Flat No."
-          value={fields.doorNumber}
-          onChange={(v) => update('doorNumber', v)}
-          placeholder="e.g. 12B"
-        />
-        <Field
-          label="Street / Area"
-          value={fields.street}
-          onChange={(v) => update('street', v)}
-          placeholder="e.g. 4th Cross, Indiranagar"
-        />
-        <Field
-          label="Floor"
-          value={fields.floor}
-          onChange={(v) => update('floor', v)}
-          placeholder="e.g. 2nd Floor"
-        />
-        <Field
-          label="Landmark"
-          value={fields.landmark}
-          onChange={(v) => update('landmark', v)}
-          placeholder="Near metro station"
-        />
-        <Field
-          label="City"
-          value={fields.city}
-          onChange={(v) => update('city', v)}
-          placeholder="Bengaluru"
-        />
-        <Field
-          label="Pincode"
-          value={fields.pincode}
-          onChange={(v) => update('pincode', v)}
-          placeholder="560038"
-        />
-      </div>
-
-      <div className="flex gap-3 pt-1">
+        {/* Map picker CTA — Zomato style */}
         <button
           type="button"
-          onClick={goBack}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-5 py-3.5 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
+          onClick={handleOpenMap}
+          className="w-full text-left border transition-all hover:shadow-md active:scale-[0.99]"
+          style={{
+            borderRadius: 'clamp(14px, 3.5vw, 20px)',
+            border: locationSet ? '2px solid #3b82f6' : '2px dashed #d1d5db',
+            background: locationSet
+              ? 'linear-gradient(135deg,#eff6ff 0%,#eef2ff 100%)'
+              : '#f9fafb',
+            padding: 'clamp(12px, 3.5vw, 16px)',
+            marginBottom: 'clamp(12px, 3vw, 16px)',
+          }}
         >
-          <ChevronLeft className="h-4 w-4" /> Back
+          <div className="flex items-center gap-3">
+            <div
+              className="shrink-0 flex items-center justify-center"
+              style={{
+                width: 'clamp(38px, 10vw, 46px)',
+                height: 'clamp(38px, 10vw, 46px)',
+                borderRadius: 'clamp(10px, 2.5vw, 14px)',
+                background: locationSet ? '#3b82f6' : '#e5e7eb',
+              }}
+            >
+              <Navigation
+                style={{
+                  width: 'clamp(16px, 4.5vw, 20px)',
+                  height: 'clamp(16px, 4.5vw, 20px)',
+                  color: locationSet ? 'white' : '#6b7280',
+                }}
+              />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p
+                className="font-black truncate"
+                style={{
+                  fontSize: 'clamp(12px, 3.2vw, 14px)',
+                  color: locationSet ? '#1e40af' : '#374151',
+                }}
+              >
+                {locationSet
+                  ? fields.street
+                    ? `${fields.doorNumber ? fields.doorNumber + ', ' : ''}${fields.street}`
+                    : 'Location selected'
+                  : 'Select location on map'}
+              </p>
+              <p
+                style={{
+                  fontSize: 'clamp(10px, 2.5vw, 12px)',
+                  color: locationSet ? '#3b82f6' : '#9ca3af',
+                  marginTop: 2,
+                }}
+              >
+                {locationSet
+                  ? `${fields.city}${fields.pincode ? ' · ' + fields.pincode : ''} · Tap to change`
+                  : 'Like Zomato / Uber — drag pin to your exact spot'}
+              </p>
+            </div>
+
+            <div
+              className="shrink-0 flex items-center justify-center border"
+              style={{
+                width: 'clamp(28px, 7vw, 34px)',
+                height: 'clamp(28px, 7vw, 34px)',
+                borderRadius: 'clamp(7px, 2vw, 10px)',
+                borderColor: locationSet ? '#93c5fd' : '#e5e7eb',
+                background: locationSet ? '#dbeafe' : 'white',
+              }}
+            >
+              <MapPin
+                style={{
+                  width: 'clamp(13px, 3.2vw, 16px)',
+                  height: 'clamp(13px, 3.2vw, 16px)',
+                  color: locationSet ? '#3b82f6' : '#9ca3af',
+                }}
+              />
+            </div>
+          </div>
         </button>
 
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="flex-1 rounded-2xl bg-blue-600 px-5 py-3.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+        {error && (
+          <div
+            className="border border-red-100 bg-red-50 text-red-700"
+            style={{
+              borderRadius: 'clamp(10px, 2.5vw, 16px)',
+              padding: 'clamp(10px, 2.5vw, 12px) clamp(12px, 3vw, 16px)',
+              marginBottom: 'clamp(10px, 2.5vw, 14px)',
+              fontSize: 'clamp(11px, 2.8vw, 13px)',
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Address fields */}
+        <div
+          className="grid grid-cols-2"
+          style={{ gap: 'clamp(10px, 2.5vw, 16px)', marginBottom: 'clamp(14px, 3.5vw, 20px)' }}
         >
-          Continue →
-        </button>
-      </div>
-    </form>
+          <Field label="Door / Flat No." value={fields.doorNumber} onChange={(v) => update('doorNumber', v)} placeholder="e.g. 12B" required />
+          <Field label="Street / Area" value={fields.street} onChange={(v) => update('street', v)} placeholder="4th Cross, Indiranagar" required />
+          <Field label="Floor" value={fields.floor} onChange={(v) => update('floor', v)} placeholder="2nd Floor" />
+          <Field label="Landmark" value={fields.landmark} onChange={(v) => update('landmark', v)} placeholder="Near metro station" />
+          <Field label="City" value={fields.city} onChange={(v) => update('city', v)} placeholder="Bengaluru" required />
+          <Field label="Pincode" value={fields.pincode} onChange={(v) => update('pincode', v)} placeholder="560038" required />
+        </div>
+
+        {/* Actions */}
+        <div className="flex" style={{ gap: 'clamp(8px, 2vw, 12px)' }}>
+          <button
+            type="button"
+            onClick={goBack}
+            className="inline-flex items-center justify-center gap-1.5 border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-all"
+            style={{
+              borderRadius: 'clamp(12px, 3vw, 18px)',
+              padding: 'clamp(11px, 3vw, 14px) clamp(14px, 4vw, 20px)',
+              fontSize: 'clamp(12px, 3vw, 14px)',
+            }}
+          >
+            <ChevronLeft style={{ width: 'clamp(14px, 3.5vw, 16px)', height: 'clamp(14px, 3.5vw, 16px)' }} />
+            Back
+          </button>
+
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className="flex-1 font-bold text-white transition-all active:scale-[0.99]"
+            style={{
+              borderRadius: 'clamp(12px, 3vw, 18px)',
+              padding: 'clamp(11px, 3vw, 14px)',
+              fontSize: 'clamp(12px, 3vw, 14px)',
+              background: canSubmit
+                ? 'linear-gradient(135deg,#2563eb 0%,#4f46e5 100%)'
+                : '#e5e7eb',
+              color: canSubmit ? 'white' : '#9ca3af',
+              cursor: canSubmit ? 'pointer' : 'not-allowed',
+              boxShadow: canSubmit ? '0 4px 16px rgba(37,99,235,0.3)' : 'none',
+            }}
+          >
+            Continue →
+          </button>
+        </div>
+      </form>
+    </>
   );
 };
-
-const Field = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}) => (
-  <label className="space-y-2">
-    <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
-      {label}
-    </span>
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition-all placeholder:text-gray-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
-    />
-  </label>
-);
