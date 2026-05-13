@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { ChevronLeft, CheckCircle, Video, Shield, Truck, Star } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { StepProps } from '../../types';
 
 const generateReferenceCode = () => {
@@ -19,6 +19,19 @@ export const PricingDisplay: React.FC<StepProps> = ({
   const isLive = issue?.liveRepair;
   const savings = pricing?.oldPrice ? pricing.oldPrice - pricing.price : 0;
   const [referenceCode] = useState(() => generateReferenceCode());
+
+  const repairButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      repairButtonRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 150);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -44,13 +57,11 @@ export const PricingDisplay: React.FC<StepProps> = ({
         </div>
       </div>
 
-      {/* ── Price hero card ───────────────────────────────────────── */}
+      {/* Price hero card */}
       <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 text-white overflow-hidden shadow-xl">
-        {/* Decorative circles */}
         <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-white/5 -translate-y-16 translate-x-16" />
         <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full bg-white/5 translate-y-12 -translate-x-12" />
 
-        {/* Live repair badge */}
         {isLive && (
           <div className="relative flex items-center gap-2.5 p-3 rounded-2xl bg-green-500/20 border border-green-500/30 mb-5">
             <div className="w-8 h-8 rounded-xl bg-green-500 flex items-center justify-center flex-shrink-0">
@@ -66,7 +77,6 @@ export const PricingDisplay: React.FC<StepProps> = ({
           </div>
         )}
 
-        {/* Device & service */}
         <div className="relative space-y-3 mb-5 pb-5 border-b border-white/10">
           <div className="flex justify-between items-center">
             <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide">Device</p>
@@ -81,7 +91,6 @@ export const PricingDisplay: React.FC<StepProps> = ({
           </div>
         </div>
 
-        {/* Price */}
         <div className="relative">
           <p className="text-gray-400 text-xs font-semibold uppercase tracking-wide mb-2">Total Amount</p>
           <div className="flex items-end gap-3 mb-1">
@@ -108,7 +117,7 @@ export const PricingDisplay: React.FC<StepProps> = ({
         </div>
       </div>
 
-      {/* ── Included benefits ─────────────────────────────────────── */}
+      {/* Included benefits */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         <p className="text-sm font-black text-gray-900 mb-4">What's Included</p>
         <div className="grid grid-cols-1 gap-3">
@@ -140,6 +149,7 @@ export const PricingDisplay: React.FC<StepProps> = ({
           <ChevronLeft className="w-4 h-4" /> Back
         </button>
         <button
+          ref={repairButtonRef}
           onClick={goToNextStep}
           className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-black text-sm hover:from-blue-700 hover:to-blue-800 shadow-lg shadow-blue-200 transition-all active:scale-95"
           data-testid="proceed-to-fix-button"

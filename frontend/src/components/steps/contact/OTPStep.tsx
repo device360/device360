@@ -11,6 +11,7 @@ const BACKEND = 'https://device360.onrender.com';
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_SECS = 60;
 
+// ── Verifier management ────────────────────────────────────────────────────
 let _verifier: RecaptchaVerifier | null = null;
 
 function destroyVerifier() {
@@ -58,20 +59,14 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   const isVerifyingRef = useRef(false);
   const hasSentRef = useRef(false);
 
+  const digits = otp.split('').concat(Array(OTP_LENGTH).fill('')).slice(0, OTP_LENGTH);
   const isComplete = otp.length === OTP_LENGTH;
 
-  const normalizeOtp = useCallback((value: string) => {
-    return value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+  const syncOtpValue = useCallback((value: string) => {
+    const clean = value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+    setOtp((prev) => (prev === clean ? prev : clean));
+    return clean;
   }, []);
-
-  const syncOtpValue = useCallback(
-    (value: string) => {
-      const clean = normalizeOtp(value);
-      setOtp((prev) => (prev === clean ? prev : clean));
-      return clean;
-    },
-    [normalizeOtp],
-  );
 
   const syncFromDom = useCallback(() => {
     const current = inputRef.current?.value ?? '';
@@ -81,6 +76,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     }
   }, [syncOtpValue]);
 
+  // ── Countdown ─────────────────────────────────────────────────────────
   const startCountdown = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     setCountdown(OTP_EXPIRY_SECS);
@@ -89,7 +85,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     timerRef.current = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
+          clearInterval(timerRef.current!);
           setCanResend(true);
           return 0;
         }
@@ -98,10 +94,10 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     }, 1000);
   }, []);
 
+  // ── Verify ────────────────────────────────────────────────────────────
   const verifyOTP = useCallback(
     async (code: string) => {
-      const clean = normalizeOtp(code);
-      if (!confirmationRef.current || clean.length !== OTP_LENGTH) return;
+      if (!confirmationRef.current || code.length !== OTP_LENGTH) return;
       if (isVerifyingRef.current) return;
 
       isVerifyingRef.current = true;
@@ -109,10 +105,9 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       setError('');
 
       try {
-        const cred = await confirmationRef.current.confirm(clean);
+        const cred = await confirmationRef.current.confirm(code);
         const token = await cred.user.getIdToken();
-
-        onVerify(clean);
+        onVerify(code);
 
         fetch(`${BACKEND}/api/auth/verify-otp`, {
           method: 'POST',
@@ -140,15 +135,18 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         isVerifyingRef.current = false;
       }
     },
-    [normalizeOtp, onVerify],
+    [onVerify],
   );
 
+  // Auto-submit when complete
   useEffect(() => {
     if (isComplete && !verifying && !isVerifyingRef.current) {
       void verifyOTP(otp);
     }
-  }, [isComplete, otp, verifying, verifyOTP]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isComplete, otp]);
 
+  // ── Web OTP API (Android Chrome) ──────────────────────────────────────
   const startWebOtpListener = useCallback(() => {
     if (typeof window === 'undefined' || !('OTPCredential' in window)) return;
     if (!('credentials' in navigator)) return;
@@ -179,6 +177,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       });
   }, [syncOtpValue]);
 
+  // ── Send OTP ──────────────────────────────────────────────────────────
   const sendOTP = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -186,6 +185,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     setOtp('');
     if (inputRef.current) inputRef.current.value = '';
 
+    // Start the listener BEFORE sending the SMS.
     startWebOtpListener();
 
     try {
@@ -220,6 +220,8 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     };
   }, [sendOTP]);
 
+  // Some browsers autofill the DOM value without firing a React change event.
+  // This lightweight poll catches that case and syncs the state.
   useEffect(() => {
     if (autofillPollRef.current) {
       clearInterval(autofillPollRef.current);
@@ -250,18 +252,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     setError('');
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const pasted = e.clipboardData.getData('text');
-    const clean = normalizeOtp(pasted);
-
-    if (!clean) return;
-
-    e.preventDefault();
-    setOtp(clean);
-    if (inputRef.current) inputRef.current.value = clean;
-    setError('');
-  };
-
   const handleResend = () => {
     hasSentRef.current = false;
     void sendOTP();
@@ -271,6 +261,11 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     <div className="relative space-y-6 p-6 sm:p-8">
       <div id="recaptcha-root" />
 
+      <style>{`
+        @keyframes otp-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+      `}</style>
+
+      {/* Header */}
       <div className="text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50">
           <ShieldCheck className="h-8 w-8 text-blue-600" />
@@ -289,34 +284,69 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </p>
       </div>
 
+      {/* Form */}
       <form autoComplete="one-time-code" onSubmit={(e) => e.preventDefault()}>
         <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">
           Enter OTP
         </label>
 
-        <input
-          ref={inputRef}
-          type="tel"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          name="one-time-code"
-          id="one-time-code"
-          pattern="[0-9]*"
-          maxLength={OTP_LENGTH}
-          value={otp}
-          onChange={handleChange}
-          onInput={handleChange}
-          onPaste={handlePaste}
-          aria-label="One-time password"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          disabled={loading || verifying}
-          placeholder="Enter 6-digit OTP"
-          className="w-full rounded-2xl border-2 border-gray-200 bg-white px-4 py-4 text-left text-lg font-semibold tracking-wide text-gray-900 outline-none transition-all placeholder:text-gray-300 focus:border-blue-400 focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:opacity-70"
-        />
+        <div className="relative">
+          <input
+            ref={inputRef}
+            type="tel"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            name="one-time-code"
+            id="one-time-code"
+            pattern="[0-9]*"
+            maxLength={OTP_LENGTH}
+            value={otp}
+            onChange={handleChange}
+            onInput={handleChange}
+            aria-label="One-time password"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            disabled={loading || verifying}
+            placeholder="123456"
+            className="w-full rounded-2xl border-2 border-gray-200 bg-gray-50 px-4 py-4 text-center text-2xl font-black tracking-[0.6em] text-gray-900 outline-none transition-all placeholder:tracking-[0.25em] placeholder:text-gray-300 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:opacity-70"
+          />
+
+          <div className="pointer-events-none mt-3 flex justify-center gap-2 sm:gap-3">
+            {digits.map((digit, i) => {
+              const isActive = !digit && otp.length === i && !verifying && !loading;
+              return (
+                <div
+                  key={i}
+                  className={[
+                    'flex h-12 w-10 items-center justify-center rounded-2xl border-2 text-xl font-black transition-all select-none sm:h-14 sm:w-12 sm:text-2xl',
+                    digit
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-gray-50 text-gray-300',
+                    isActive ? 'border-blue-400 bg-white ring-4 ring-blue-50' : '',
+                    error ? 'border-red-300 bg-red-50' : '',
+                    verifying ? 'opacity-60' : '',
+                  ].filter(Boolean).join(' ')}
+                >
+                  {digit ? digit : isActive ? (
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '2px',
+                        height: '22px',
+                        backgroundColor: '#60a5fa',
+                        animation: 'otp-blink 1s step-end infinite',
+                      }}
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </form>
 
+      {/* Countdown / Resend */}
       <div className="text-center">
         {verifying ? (
           <div className="flex items-center justify-center gap-2 text-blue-600">
@@ -342,6 +372,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         ) : null}
       </div>
 
+      {/* Error */}
       {error && (
         <div className="flex items-start gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3.5">
           <div className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-red-500">
@@ -351,6 +382,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </div>
       )}
 
+      {/* Auto-verifying */}
       {isComplete && !verifying && !error && (
         <div className="flex items-center justify-center gap-2 text-green-600">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
@@ -358,6 +390,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </div>
       )}
 
+      {/* Try Again */}
       {error && isComplete && (
         <button
           onClick={() => void verifyOTP(otp)}
@@ -368,6 +401,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </button>
       )}
 
+      {/* Change number */}
       <button
         onClick={goBack}
         disabled={loading || verifying}
