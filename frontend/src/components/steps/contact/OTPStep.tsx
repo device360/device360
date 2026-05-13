@@ -37,38 +37,27 @@ interface OTPStepProps {
 }
 
 export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
-  const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
   const [countdown, setCountdown] = useState(OTP_EXPIRY_SECS);
   const [canResend, setCanResend] = useState(false);
+  const [focused, setFocused] = useState(false);
 
-  // Refs — keep mutable values out of React state to avoid stale closures
-  const realInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const webOtpAbortRef = useRef<AbortController | null>(null);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const isVerifyingRef = useRef(false);
   const hasSentRef = useRef(false);
 
-  const otpValue = digits.join('');
-  const isComplete = digits.every(Boolean);
+  const digits = otp.split('').concat(Array(OTP_LENGTH).fill('')).slice(0, OTP_LENGTH);
+  const isComplete = otp.length === OTP_LENGTH;
+  const activeBox = Math.min(otp.length, OTP_LENGTH - 1);
 
-  // ── Apply any raw string → 6-digit array ────────────────────────────────
-  const applyDigits = useCallback((raw: string) => {
-    const clean = raw.replace(/\D/g, '').slice(0, OTP_LENGTH);
-    setDigits(Array.from({ length: OTP_LENGTH }, (_, i) => clean[i] ?? ''));
-    // Keep the uncontrolled input's DOM value in sync so the browser
-    // doesn't reset it on next render (important for autofill)
-    if (realInputRef.current && realInputRef.current.value !== clean) {
-      realInputRef.current.value = clean;
-    }
-  }, []);
-
-  // ── Countdown ───────────────────────────────────────────────────────────
+  // ── Countdown ─────────────────────────────────────────────────────────
   const startCountdown = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     setCountdown(OTP_EXPIRY_SECS);
@@ -81,11 +70,10 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     }, 1000);
   }, []);
 
-  // ── Verify ──────────────────────────────────────────────────────────────
+  // ── Verify ────────────────────────────────────────────────────────────
   const verifyOTP = useCallback(async (code: string) => {
     if (!confirmationRef.current || code.length !== OTP_LENGTH) return;
     if (isVerifyingRef.current) return;
-
     isVerifyingRef.current = true;
     setVerifying(true);
     setError('');
@@ -111,25 +99,23 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       } else {
         setError('Verification failed. Try resending OTP.');
       }
-      // Clear both state and the DOM input value
-      setDigits(Array(OTP_LENGTH).fill(''));
-      if (realInputRef.current) realInputRef.current.value = '';
-      setTimeout(() => realInputRef.current?.focus(), 50);
+      setOtp('');
+      setTimeout(() => inputRef.current?.focus(), 50);
     } finally {
       setVerifying(false);
       isVerifyingRef.current = false;
     }
   }, [onVerify]);
 
-  // Auto-submit when all 6 digits filled
+  // Auto-submit when complete
   useEffect(() => {
     if (isComplete && !verifying && !isVerifyingRef.current) {
-      void verifyOTP(otpValue);
+      void verifyOTP(otp);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isComplete, otpValue]);
+  }, [isComplete, otp]);
 
-  // ── Web OTP API (Android Chrome) ────────────────────────────────────────
+  // ── Web OTP API (Android Chrome) ──────────────────────────────────────
   const startWebOtpListener = useCallback(() => {
     if (typeof window === 'undefined' || !('OTPCredential' in window)) return;
     try { webOtpAbortRef.current?.abort(); } catch { /* ignore */ }
@@ -137,27 +123,27 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     webOtpAbortRef.current = controller;
     navigator.credentials
       .get({
-        // @ts-expect-error Web OTP API not in TS lib yet
+        // @ts-expect-error Web OTP API not in TS lib
         otp: { transport: ['sms'] },
         signal: controller.signal,
       })
       .then((credential: any) => {
-        if (credential?.code) applyDigits(credential.code);
+        if (credential?.code) {
+          const clean = credential.code.replace(/\D/g, '').slice(0, OTP_LENGTH);
+          setOtp(clean);
+        }
       })
       .catch(() => { /* aborted or unsupported */ });
-  }, [applyDigits]);
+  }, []);
 
-  // ── Send OTP ─────────────────────────────────────────────────────────────
+  // ── Send OTP ──────────────────────────────────────────────────────────
   const sendOTP = useCallback(async () => {
     setLoading(true);
     setError('');
     setSent(false);
-    setDigits(Array(OTP_LENGTH).fill(''));
-    if (realInputRef.current) realInputRef.current.value = '';
-
-    // Start Web OTP listener BEFORE sending — must be in-flight when SMS arrives
+    setOtp('');
+    // Start Web OTP listener BEFORE sending — must be awaiting when SMS arrives
     startWebOtpListener();
-
     try {
       destroyVerifier();
       const verifier = getOrCreateVerifier();
@@ -165,8 +151,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       confirmationRef.current = result;
       setSent(true);
       startCountdown();
-      // Focus opens the keyboard and activates the autofill suggestion
-      setTimeout(() => realInputRef.current?.focus(), 150);
+      setTimeout(() => inputRef.current?.focus(), 150);
     } catch (err: any) {
       destroyVerifier();
       setError(err?.message || 'Failed to send OTP. Please try again.');
@@ -185,36 +170,11 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     };
   }, [sendOTP]);
 
-  // ── Input event handler (attached via ref, not React prop) ───────────────
-  // Using a ref-based native 'input' event listener instead of React's
-  // onChange avoids the controlled-input interception that blocks browser autofill.
-  // The browser fires a native 'input' event on autofill; React's synthetic
-  // onChange sometimes doesn't fire for programmatic/autofill fills in WebViews.
-  useEffect(() => {
-    const el = realInputRef.current;
-    if (!el) return;
-
-    const handleInput = () => {
-      applyDigits(el.value);
-    };
-
-    el.addEventListener('input', handleInput);
-    return () => el.removeEventListener('input', handleInput);
-  }, [applyDigits]);
-
-  const handlePaste = useCallback((e: ClipboardEvent) => {
-    e.preventDefault();
-    applyDigits(e.clipboardData?.getData('text') ?? '');
-  }, [applyDigits]);
-
-  useEffect(() => {
-    const el = realInputRef.current;
-    if (!el) return;
-    el.addEventListener('paste', handlePaste as EventListener);
-    return () => el.removeEventListener('paste', handlePaste as EventListener);
-  }, [handlePaste]);
-
-  const handleBoxClick = () => realInputRef.current?.focus();
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const clean = e.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+    setOtp(clean);
+    setError('');
+  };
 
   const handleResend = () => {
     hasSentRef.current = false;
@@ -225,6 +185,59 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     <div className="relative space-y-6 p-6 sm:p-8">
       <div id="recaptcha-root" />
 
+      <style>{`
+        @keyframes otp-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+        /*
+          Why this works when nothing else did:
+          ─────────────────────────────────────
+          Every previous approach hid the input using opacity:0, visibility:hidden,
+          or positioned it off-screen. All of these cause iOS Safari and Android
+          Chrome/WebViews to skip SMS autofill — the browser's autofill engine
+          validates that the target input is visible and interactable before
+          offering or completing a fill.
+
+          This approach keeps ONE real <input> fully in the document flow and
+          makes it invisible by setting its text color, background, border, and
+          caret color all to transparent — while leaving opacity at 0.01 (not 0)
+          and keeping it absolutely positioned ON TOP of the visual digit boxes.
+
+          The visual boxes are pointer-events:none divs. They show digits from
+          React state. The real input captures all typing, paste, and autofill.
+
+          The <form autoComplete="on"> wrapper is required by iOS Safari ≤16 to
+          surface the "From Messages" keyboard suggestion.
+
+          overflow-x:hidden on ANY ancestor kills this — fixed in Layout.tsx.
+          overflow:hidden on ANY ancestor kills this — fixed in LeadCapture.tsx.
+        */
+        .otp-real-input {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          background: transparent !important;
+          border: none !important;
+          outline: none !important;
+          color: transparent !important;
+          caret-color: transparent !important;
+          -webkit-text-fill-color: transparent !important;
+          font-size: 16px;
+          opacity: 0.01;
+          z-index: 20;
+          cursor: text;
+          padding: 0;
+          margin: 0;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+          /* NO pointer-events:none  — autofill taps must reach this element  */
+          /* NO disabled             — browser won't autofill disabled inputs  */
+          /* NO visibility:hidden    — removes element from autofill scan tree */
+          /* NO display:none         — same                                    */
+        }
+      `}</style>
+
+      {/* Header */}
       <div className="text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50">
           <ShieldCheck className="h-8 w-8 text-blue-600" />
@@ -240,108 +253,64 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       </div>
 
       {/*
-        OTP Row
-        ───────
-        The real <input> is UNCONTROLLED (no value= prop, no onChange= prop).
-        Reasons:
-          1. React controlled inputs block browser/OS autofill in many WebViews
-             because autofill bypasses React's event system.
-          2. The input must NEVER be disabled — not even during loading —
-             because iOS/Android refuse to autofill a disabled input. If the
-             SMS arrives while we're still calling Firebase, we'd miss it.
-          3. overflow-hidden on any ancestor clips the absolute-positioned
-             input, preventing autofill tap events from landing on it.
-             (Fixed in LeadCapture.tsx by removing overflow-hidden.)
-        
-        The <form autoComplete="on"> wrapper is required by iOS Safari to
-        surface the "From Messages" suggestion above the keyboard.
+        FORM — required by iOS Safari to show "From Messages" above keyboard.
+        autoComplete="on" must be on the form, not just the input.
       */}
-      <form onSubmit={(e) => e.preventDefault()} autoComplete="on">
-        <div className="relative" style={{ minHeight: '56px' }}>
-          {/*
-            THE REAL INPUT — uncontrolled, always enabled, never visibility:hidden.
-            Sits behind the visual boxes and owns all text input, autofill, Web OTP.
-          */}
+      <form autoComplete="on" onSubmit={(e) => e.preventDefault()}>
+        <div
+          className="relative flex justify-center"
+          style={{ height: '56px' }}
+          onClick={() => inputRef.current?.focus()}
+        >
+          {/* THE REAL INPUT — styled transparent but fully visible to browser */}
           <input
-            ref={realInputRef}
+            ref={inputRef}
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
             name="one-time-code"
             id="one-time-code"
+            pattern="\d*"
             maxLength={OTP_LENGTH}
-            defaultValue=""
+            value={otp}
+            onChange={handleChange}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             aria-label="One-time password"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
-            onFocus={() => {
-              const firstEmpty = digits.findIndex((d) => !d);
-              setFocusedIndex(firstEmpty === -1 ? OTP_LENGTH - 1 : firstEmpty);
-            }}
-            onBlur={() => setFocusedIndex(null)}
-            style={{
-              // Covers the entire OTP box row so autofill-banner taps hit it.
-              // opacity:0 — invisible but still in the accessibility + autofill tree.
-              // NEVER use display:none / visibility:hidden / pointer-events:none.
-              // NEVER use disabled — autofill won't fill a disabled input.
-              // fontSize:16px — prevents iOS auto-zoom on focus.
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              opacity: 0,
-              fontSize: '16px',
-              caretColor: 'transparent',
-              zIndex: 10,
-              // NO disabled, NO pointerEvents:none, NO visibility:hidden
-            }}
+            className="otp-real-input"
           />
 
-          {/* Visual digit boxes — purely decorative divs, no real input logic */}
-          <div
-            className="flex justify-center gap-2 sm:gap-3"
-            onClick={handleBoxClick}
-            role="group"
-            aria-label="OTP digits"
-          >
+          {/* Visual digit boxes — pointer-events:none, purely decorative */}
+          <div className="flex gap-2 sm:gap-3 pointer-events-none">
             {digits.map((digit, i) => {
-              const firstEmpty = digits.findIndex((d) => !d);
-              const activeIdx = firstEmpty === -1 ? OTP_LENGTH - 1 : firstEmpty;
-              const isActive = focusedIndex !== null && i === activeIdx;
-
+              const isActive = focused && i === activeBox;
               return (
                 <div
                   key={i}
-                  onClick={handleBoxClick}
                   className={[
-                    'h-14 w-11 select-none rounded-2xl border-2 cursor-text sm:w-12',
-                    'flex items-center justify-center text-2xl font-black transition-all',
+                    'h-14 w-11 sm:w-12 rounded-2xl border-2',
+                    'flex items-center justify-center text-2xl font-black transition-all select-none',
                     digit
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
                       : 'border-gray-200 bg-gray-50 text-gray-900',
                     isActive && !digit ? 'border-blue-400 bg-white ring-4 ring-blue-50' : '',
                     error ? 'border-red-300 bg-red-50' : '',
-                    verifying ? 'cursor-not-allowed opacity-50' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
+                    verifying ? 'opacity-50' : '',
+                  ].filter(Boolean).join(' ')}
                 >
                   {digit
                     ? digit
                     : isActive
-                      ? (
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            width: '2px',
-                            height: '28px',
-                            backgroundColor: '#60a5fa',
-                            animation: 'blink 1s step-end infinite',
-                          }}
-                        />
-                      )
+                      ? <span style={{
+                          display: 'inline-block',
+                          width: '2px',
+                          height: '28px',
+                          backgroundColor: '#60a5fa',
+                          animation: 'otp-blink 1s step-end infinite',
+                        }} />
                       : null}
                 </div>
               );
@@ -349,8 +318,6 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
           </div>
         </div>
       </form>
-
-      <style>{`@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
 
       {/* Countdown / Resend */}
       <div className="text-center">
@@ -388,7 +355,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </div>
       )}
 
-      {/* Auto-verifying indicator */}
+      {/* Auto-verifying */}
       {isComplete && !verifying && !error && (
         <div className="flex items-center justify-center gap-2 text-green-600">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
@@ -396,10 +363,10 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </div>
       )}
 
-      {/* Try Again after error */}
+      {/* Try Again */}
       {error && isComplete && (
         <button
-          onClick={() => void verifyOTP(otpValue)}
+          onClick={() => void verifyOTP(otp)}
           disabled={verifying}
           className="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition-all active:scale-95 hover:from-blue-700 hover:to-blue-800 disabled:opacity-50"
         >
