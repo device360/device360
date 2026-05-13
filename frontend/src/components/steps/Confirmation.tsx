@@ -236,7 +236,7 @@ export const Confirmation: React.FC<StepProps> = ({ formData }) => {
               <MapPin className="h-3.5 w-3.5 text-violet-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-white">Pickup within 60 minutes</p>
+              <p className="text-sm font-bold text-white">Pickup within 10-15 minutes</p>
               <p className="break-words text-xs leading-relaxed text-gray-400">{addrStr}</p>
             </div>
           </div>
