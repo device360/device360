@@ -36,7 +36,10 @@ function App() {
         style={{
           opacity: loaded ? 1 : 0,
           transition: 'opacity 0.5s ease',
-          visibility: loaded ? 'visible' : 'hidden',
+          // Do NOT use visibility:hidden — it removes elements from the browser's
+          // credential/autofill scan, breaking SMS OTP autofill on iOS & Android.
+          // pointer-events:none gives the same "non-interactive" result safely.
+          pointerEvents: loaded ? 'auto' : 'none',
         }}
       >
         <BrowserRouter>

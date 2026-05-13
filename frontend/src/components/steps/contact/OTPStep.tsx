@@ -268,7 +268,11 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
         </p>
       </div>
 
-      {/* OTP Row */}
+      {/* OTP Row — wrapped in <form> so iOS Safari surfaces the
+           "From Messages" autofill suggestion above the keyboard.
+           Without a form ancestor, Safari ignores autoComplete="one-time-code"
+           on standalone inputs in many versions. */}
+      <form onSubmit={(e) => e.preventDefault()} autoComplete="on">
       <div className="relative">
         <input
           ref={realInputRef}
@@ -276,6 +280,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
           inputMode="numeric"
           autoComplete="one-time-code"
           name="one-time-code"
+          id="one-time-code"
           maxLength={OTP_LENGTH}
           value={otpValue}
           onChange={handleRealInput}
@@ -289,12 +294,16 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
           spellCheck={false}
           style={{
             position: 'absolute',
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             width: '100%',
             height: '100%',
             opacity: 0,
             fontSize: '16px',
             caretColor: 'transparent',
+            zIndex: 10,
           }}
         />
 
@@ -345,6 +354,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
           })}
         </div>
       </div>
+      </form>
 
       <style>{`@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
 
