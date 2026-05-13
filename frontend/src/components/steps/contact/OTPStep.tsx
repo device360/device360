@@ -11,10 +11,15 @@ const BACKEND = 'https://device360.onrender.com';
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_SECS = 60;
 
+// ── Verifier management ────────────────────────────────────────────────────
 let _verifier: RecaptchaVerifier | null = null;
 
 function destroyVerifier() {
-  try { _verifier?.clear(); } catch { /* */ }
+  try {
+    _verifier?.clear();
+  } catch {
+    /* ignore */
+  }
   _verifier = null;
 }
 
@@ -23,7 +28,9 @@ function getOrCreateVerifier(): RecaptchaVerifier {
     _verifier = new RecaptchaVerifier(auth, 'recaptcha-root', {
       size: 'invisible',
       callback: () => {},
-      'expired-callback': () => { destroyVerifier(); },
+      'expired-callback': () => {
+        destroyVerifier();
+      },
     });
   }
   return _verifier;
@@ -36,7 +43,7 @@ interface OTPStepProps {
 }
 
 export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
-  const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
@@ -44,117 +51,143 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
   const [countdown, setCountdown] = useState(OTP_EXPIRY_SECS);
   const [canResend, setCanResend] = useState(false);
 
-  // 6 real input refs — one per box
-  const inputRefs = useRef<(HTMLInputElement | null)[]>(Array(OTP_LENGTH).fill(null));
+  const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autofillPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const webOtpAbortRef = useRef<AbortController | null>(null);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const isVerifyingRef = useRef(false);
   const hasSentRef = useRef(false);
 
-  const otpValue = digits.join('');
-  const isComplete = digits.every(Boolean);
+  const digits = otp.split('').concat(Array(OTP_LENGTH).fill('')).slice(0, OTP_LENGTH);
+  const isComplete = otp.length === OTP_LENGTH;
 
-  const focusBox = (i: number) => {
-    const el = inputRefs.current[Math.max(0, Math.min(i, OTP_LENGTH - 1))];
-    el?.focus();
-    // Move cursor to end
-    setTimeout(() => el?.setSelectionRange(el.value.length, el.value.length), 0);
-  };
-
-  // Fill all boxes from a string (autofill / paste / Web OTP)
-  const fillAll = useCallback((raw: string) => {
-    const clean = raw.replace(/\D/g, '').slice(0, OTP_LENGTH);
-    if (!clean) return;
-    const next = Array.from({ length: OTP_LENGTH }, (_, i) => clean[i] ?? '');
-    setDigits(next);
-    setError('');
-    // Focus last filled box
-    focusBox(Math.min(clean.length, OTP_LENGTH - 1));
+  const syncOtpValue = useCallback((value: string) => {
+    const clean = value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+    setOtp((prev) => (prev === clean ? prev : clean));
+    return clean;
   }, []);
 
-  // Countdown
+  const syncFromDom = useCallback(() => {
+    const current = inputRef.current?.value ?? '';
+    const clean = syncOtpValue(current);
+    if (inputRef.current && inputRef.current.value !== clean) {
+      inputRef.current.value = clean;
+    }
+  }, [syncOtpValue]);
+
+  // ── Countdown ─────────────────────────────────────────────────────────
   const startCountdown = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     setCountdown(OTP_EXPIRY_SECS);
     setCanResend(false);
+
     timerRef.current = setInterval(() => {
       setCountdown((c) => {
-        if (c <= 1) { clearInterval(timerRef.current!); setCanResend(true); return 0; }
+        if (c <= 1) {
+          clearInterval(timerRef.current!);
+          setCanResend(true);
+          return 0;
+        }
         return c - 1;
       });
     }, 1000);
   }, []);
 
-  // Verify
-  const verifyOTP = useCallback(async (code: string) => {
-    if (!confirmationRef.current || code.length !== OTP_LENGTH) return;
-    if (isVerifyingRef.current) return;
-    isVerifyingRef.current = true;
-    setVerifying(true);
-    setError('');
-    try {
-      const cred = await confirmationRef.current.confirm(code);
-      const token = await cred.user.getIdToken();
-      onVerify(code);
-      fetch(`${BACKEND}/api/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: token }),
-      }).catch(() => {});
-    } catch (err: any) {
-      const errCode = err?.code ?? '';
-      if (errCode === 'auth/invalid-verification-code') {
-        setError('Incorrect OTP. Please check and try again.');
-      } else if (errCode === 'auth/code-expired') {
-        setError('OTP expired. Tap "Resend OTP" to get a new one.');
-        setCanResend(true);
-        if (timerRef.current) clearInterval(timerRef.current);
-        setCountdown(0);
-      } else {
-        setError('Verification failed. Try resending OTP.');
-      }
-      setDigits(Array(OTP_LENGTH).fill(''));
-      setTimeout(() => focusBox(0), 50);
-    } finally {
-      setVerifying(false);
-      isVerifyingRef.current = false;
-    }
-  }, [onVerify]);
+  // ── Verify ────────────────────────────────────────────────────────────
+  const verifyOTP = useCallback(
+    async (code: string) => {
+      if (!confirmationRef.current || code.length !== OTP_LENGTH) return;
+      if (isVerifyingRef.current) return;
 
-  // Auto-submit when all filled
+      isVerifyingRef.current = true;
+      setVerifying(true);
+      setError('');
+
+      try {
+        const cred = await confirmationRef.current.confirm(code);
+        const token = await cred.user.getIdToken();
+        onVerify(code);
+
+        fetch(`${BACKEND}/api/auth/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: token }),
+        }).catch(() => {});
+      } catch (err: any) {
+        const errCode = err?.code ?? '';
+        if (errCode === 'auth/invalid-verification-code') {
+          setError('Incorrect OTP. Please check and try again.');
+        } else if (errCode === 'auth/code-expired') {
+          setError('OTP expired. Tap "Resend OTP" to get a new one.');
+          setCanResend(true);
+          if (timerRef.current) clearInterval(timerRef.current);
+          setCountdown(0);
+        } else {
+          setError('Verification failed. Try resending OTP.');
+        }
+
+        setOtp('');
+        if (inputRef.current) inputRef.current.value = '';
+        setTimeout(() => inputRef.current?.focus(), 50);
+      } finally {
+        setVerifying(false);
+        isVerifyingRef.current = false;
+      }
+    },
+    [onVerify],
+  );
+
+  // Auto-submit when complete
   useEffect(() => {
     if (isComplete && !verifying && !isVerifyingRef.current) {
-      void verifyOTP(otpValue);
+      void verifyOTP(otp);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isComplete, otpValue]);
+  }, [isComplete, otp]);
 
-  // Web OTP API (Android Chrome)
+  // ── Web OTP API (Android Chrome) ──────────────────────────────────────
   const startWebOtpListener = useCallback(() => {
     if (typeof window === 'undefined' || !('OTPCredential' in window)) return;
-    try { webOtpAbortRef.current?.abort(); } catch { /* */ }
+    if (!('credentials' in navigator)) return;
+
+    try {
+      webOtpAbortRef.current?.abort();
+    } catch {
+      /* ignore */
+    }
+
     const controller = new AbortController();
     webOtpAbortRef.current = controller;
+
     navigator.credentials
       .get({
-        // @ts-expect-error Web OTP API
+        // @ts-expect-error Web OTP API not in TS lib
         otp: { transport: ['sms'] },
         signal: controller.signal,
       })
       .then((credential: any) => {
-        if (credential?.code) fillAll(credential.code);
+        if (credential?.code) {
+          const clean = syncOtpValue(String(credential.code));
+          if (inputRef.current) inputRef.current.value = clean;
+        }
       })
-      .catch(() => { /* aborted/unsupported */ });
-  }, [fillAll]);
+      .catch(() => {
+        /* aborted or unsupported */
+      });
+  }, [syncOtpValue]);
 
-  // Send OTP
+  // ── Send OTP ──────────────────────────────────────────────────────────
   const sendOTP = useCallback(async () => {
     setLoading(true);
     setError('');
     setSent(false);
-    setDigits(Array(OTP_LENGTH).fill(''));
-    startWebOtpListener(); // must be before SMS sends
+    setOtp('');
+    if (inputRef.current) inputRef.current.value = '';
+
+    // Start the listener BEFORE sending the SMS.
+    startWebOtpListener();
+
     try {
       destroyVerifier();
       const verifier = getOrCreateVerifier();
@@ -162,7 +195,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       confirmationRef.current = result;
       setSent(true);
       startCountdown();
-      setTimeout(() => focusBox(0), 150);
+      setTimeout(() => inputRef.current?.focus(), 150);
     } catch (err: any) {
       destroyVerifier();
       setError(err?.message || 'Failed to send OTP. Please try again.');
@@ -175,55 +208,48 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     if (hasSentRef.current) return;
     hasSentRef.current = true;
     void sendOTP();
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      try { webOtpAbortRef.current?.abort(); } catch { /* */ }
+      if (autofillPollRef.current) clearInterval(autofillPollRef.current);
+      try {
+        webOtpAbortRef.current?.abort();
+      } catch {
+        /* ignore */
+      }
     };
   }, [sendOTP]);
 
-  // Per-box handlers
-  const handleChange = (i: number, val: string) => {
-    // If browser autofills the whole OTP into box 0 (common on iOS)
-    if (val.length > 1) {
-      fillAll(val);
-      return;
+  // Some browsers autofill the DOM value without firing a React change event.
+  // This lightweight poll catches that case and syncs the state.
+  useEffect(() => {
+    if (autofillPollRef.current) {
+      clearInterval(autofillPollRef.current);
+      autofillPollRef.current = null;
     }
-    const char = val.replace(/\D/g, '');
-    const next = [...digits];
-    next[i] = char;
-    setDigits(next);
-    setError('');
-    if (char && i < OTP_LENGTH - 1) focusBox(i + 1);
-  };
 
-  const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace') {
-      if (digits[i]) {
-        const next = [...digits];
-        next[i] = '';
-        setDigits(next);
-      } else if (i > 0) {
-        const next = [...digits];
-        next[i - 1] = '';
-        setDigits(next);
-        focusBox(i - 1);
+    if (!sent || verifying) return;
+
+    autofillPollRef.current = setInterval(() => {
+      syncFromDom();
+    }, 200);
+
+    syncFromDom();
+
+    return () => {
+      if (autofillPollRef.current) {
+        clearInterval(autofillPollRef.current);
+        autofillPollRef.current = null;
       }
-      e.preventDefault();
-    } else if (e.key === 'ArrowLeft' && i > 0) {
-      focusBox(i - 1);
-    } else if (e.key === 'ArrowRight' && i < OTP_LENGTH - 1) {
-      focusBox(i + 1);
+    };
+  }, [sent, verifying, syncFromDom]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const clean = syncOtpValue(e.target.value);
+    if (e.target.value !== clean) {
+      e.target.value = clean;
     }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    fillAll(e.clipboardData.getData('text'));
-  };
-
-  const handleFocus = (i: number) => {
-    // If clicking an already-filled box, select all so typing replaces it
-    inputRefs.current[i]?.select();
+    setError('');
   };
 
   const handleResend = () => {
@@ -235,6 +261,10 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
     <div className="relative space-y-6 p-6 sm:p-8">
       <div id="recaptcha-root" />
 
+      <style>{`
+        @keyframes otp-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+      `}</style>
+
       {/* Header */}
       <div className="text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50">
@@ -245,75 +275,74 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
           {loading && !sent
             ? 'Sending OTP…'
             : sent
-              ? <> OTP sent to <span className="font-bold text-gray-700">{phone}</span> </>
+              ? (
+                <>
+                  OTP sent to <span className="font-bold text-gray-700">{phone}</span>
+                </>
+              )
               : 'Getting ready…'}
         </p>
       </div>
 
-      {/*
-        6 REAL INPUTS — one per digit.
+      {/* Form */}
+      <form autoComplete="one-time-code" onSubmit={(e) => e.preventDefault()}>
+        <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-gray-500">
+          Enter OTP
+        </label>
 
-        Why this works when every other approach failed:
-        ─────────────────────────────────────────────────
-        iOS Safari's SMS autofill scans for an input with autoComplete="one-time-code".
-        It requires the input to be:
-          1. Visible (not opacity:0, not visibility:hidden, not display:none)
-          2. Enabled (not disabled)
-          3. Not clipped by overflow:hidden on any ancestor
-          4. In normal document flow
+        <div className="relative">
+          <input
+            ref={inputRef}
+            type="tel"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            name="one-time-code"
+            id="one-time-code"
+            pattern="[0-9]*"
+            maxLength={OTP_LENGTH}
+            value={otp}
+            onChange={handleChange}
+            onInput={handleChange}
+            aria-label="One-time password"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            disabled={loading || verifying}
+            placeholder="123456"
+            className="w-full rounded-2xl border-2 border-gray-200 bg-gray-50 px-4 py-4 text-center text-2xl font-black tracking-[0.6em] text-gray-900 outline-none transition-all placeholder:tracking-[0.25em] placeholder:text-gray-300 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50 disabled:cursor-not-allowed disabled:opacity-70"
+          />
 
-        Every previous approach violated at least one of these by hiding the
-        real input behind decorative divs. This approach uses 6 actual <input>
-        elements — exactly what WhatsApp, Google, and every major app uses.
-
-        The autoComplete="one-time-code" on box[0] is what triggers the
-        "From Messages" suggestion on iOS. On Android, the Web OTP API
-        (navigator.credentials.get) fills all boxes via fillAll().
-
-        The <form autoComplete="on"> wrapper is required by iOS Safari ≤16.
-
-        Critical: overflow-x:hidden on body (index.css, App.css) and
-        overflow-x-hidden on Layout's root div have ALL been removed,
-        as any of them would clip these inputs in mobile WebViews.
-      */}
-      <form autoComplete="on" onSubmit={(e) => e.preventDefault()}>
-        <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
-          {digits.map((digit, i) => (
-            <input
-              key={i}
-              ref={(el) => { inputRefs.current[i] = el; }}
-              type="text"
-              inputMode="numeric"
-              pattern="\d*"
-              maxLength={2}
-              value={digit}
-              autoComplete={i === 0 ? 'one-time-code' : 'off'}
-              name={i === 0 ? 'one-time-code' : undefined}
-              id={i === 0 ? 'one-time-code' : undefined}
-              onChange={(e) => handleChange(i, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(i, e)}
-              onFocus={() => handleFocus(i)}
-              disabled={verifying}
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              aria-label={`OTP digit ${i + 1}`}
-              className={[
-                // Each box is a real visible input
-                'h-14 w-11 sm:w-12 rounded-2xl border-2 text-center text-2xl font-black',
-                'outline-none transition-all bg-gray-50',
-                // fontSize 16px prevents iOS zoom, set via style below
-                digit
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 text-gray-900',
-                error
-                  ? 'border-red-300 bg-red-50'
-                  : 'focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50',
-                verifying ? 'opacity-50 cursor-not-allowed' : 'cursor-text',
-              ].filter(Boolean).join(' ')}
-              style={{ fontSize: '24px', caretColor: 'transparent' }}
-            />
-          ))}
+          <div className="pointer-events-none mt-3 flex justify-center gap-2 sm:gap-3">
+            {digits.map((digit, i) => {
+              const isActive = !digit && otp.length === i && !verifying && !loading;
+              return (
+                <div
+                  key={i}
+                  className={[
+                    'flex h-12 w-10 items-center justify-center rounded-2xl border-2 text-xl font-black transition-all select-none sm:h-14 sm:w-12 sm:text-2xl',
+                    digit
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-gray-50 text-gray-300',
+                    isActive ? 'border-blue-400 bg-white ring-4 ring-blue-50' : '',
+                    error ? 'border-red-300 bg-red-50' : '',
+                    verifying ? 'opacity-60' : '',
+                  ].filter(Boolean).join(' ')}
+                >
+                  {digit ? digit : isActive ? (
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '2px',
+                        height: '22px',
+                        backgroundColor: '#60a5fa',
+                        animation: 'otp-blink 1s step-end infinite',
+                      }}
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </form>
 
@@ -328,7 +357,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
           <button
             onClick={handleResend}
             disabled={loading}
-            className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 transition-colors hover:text-blue-700"
+            className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 transition-colors hover:text-blue-700 disabled:opacity-50"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             {loading ? 'Sending…' : 'Resend OTP'}
@@ -364,7 +393,7 @@ export const OTPStep = ({ phone, onVerify, goBack }: OTPStepProps) => {
       {/* Try Again */}
       {error && isComplete && (
         <button
-          onClick={() => void verifyOTP(otpValue)}
+          onClick={() => void verifyOTP(otp)}
           disabled={verifying}
           className="w-full rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition-all active:scale-95 hover:from-blue-700 hover:to-blue-800 disabled:opacity-50"
         >
