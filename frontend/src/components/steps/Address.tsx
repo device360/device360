@@ -49,7 +49,7 @@ type LatLng = { lat: number; lng: number };
 // ─── Google Maps loader ────────────────────────────────────────────────────
 
 // IMPORTANT: Replace this with your actual Google Maps API key
-const GOOGLE_MAPS_API_KEY = 'YOUR_GOOGLE_MAPS_API_KEY';
+const GOOGLE_MAPS_API_KEY = 'AIzaSyA1rncePP2PSnPC84T0FqYQNncDABRUPIw';
 
 let mapsLoaded = false;
 let mapsLoading = false;
