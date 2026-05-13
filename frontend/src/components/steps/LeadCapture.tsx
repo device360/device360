@@ -129,7 +129,7 @@ export const LeadCapture: React.FC<StepProps> = ({
       </div>
 
       {/* Step content */}
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-100/60 overflow-hidden">
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-100/60">
         {step === 1 && (
           <PhoneStep
             phone={phone}
