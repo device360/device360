@@ -3,11 +3,29 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Package, Eye, CheckCircle, Clock, MapPin, Phone, ArrowLeft,
-  Video, Zap, RefreshCw, MessageCircle, Share2, Wrench,
+  Video, Zap, RefreshCw, MessageCircle, Share2, Wrench, Copy,
 } from 'lucide-react';
 import type { Lead } from '../types';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+// ── Same hashing function as Confirmation.tsx ─────────────────────────────
+const toShortBookingCode = (value?: string | null) => {
+  const raw = (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!raw) return 'PENDING';
+  if (raw.length === 7) return raw;
+
+  let hash = 5381;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash = ((hash << 5) + hash) + raw.charCodeAt(i);
+    hash |= 0;
+  }
+
+  const base36 = Math.abs(hash).toString(36).toUpperCase().padStart(6, '0');
+  return `D${base36.slice(-6)}`; // 7 chars total, alphanumeric
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const REPAIR_STEPS = [
   { id: 1, label: 'Booking Confirmed',  icon: CheckCircle, statuses: ['pending','confirmed','picked_up','in_progress','completed'] },
@@ -16,15 +34,6 @@ const REPAIR_STEPS = [
   { id: 4, label: 'Quality Check',      icon: Eye,         statuses: ['completed'] },
   { id: 5, label: 'Out for Delivery',   icon: MapPin,      statuses: ['delivered'] },
 ];
-
-const STATUS_COLOR: Record<string, string> = {
-  completed:   'bg-emerald-50 text-emerald-700 border-emerald-200',
-  in_progress: 'bg-orange-50 text-orange-700 border-orange-200',
-  picked_up:   'bg-violet-50 text-violet-700 border-violet-200',
-  confirmed:   'bg-blue-50 text-blue-700 border-blue-200',
-  pending:     'bg-amber-50 text-amber-700 border-amber-200',
-  cancelled:   'bg-red-50 text-red-700 border-red-200',
-};
 
 const STATUS_DOT: Record<string, string> = {
   completed: 'bg-emerald-500', in_progress: 'bg-orange-500',
@@ -38,6 +47,11 @@ export const Dashboard: React.FC = () => {
   const [booking, setBooking] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Derive the same short code from the raw URL param / booking.id
+  const rawId = booking?.id ? String(booking.id) : (bookingId || '');
+  const bookingCode = toShortBookingCode(rawId);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -52,6 +66,14 @@ export const Dashboard: React.FC = () => {
     const id = setInterval(fetchBooking, 30000);
     return () => clearInterval(id);
   }, [bookingId]);
+
+  const copyBookingId = async () => {
+    try {
+      await navigator.clipboard.writeText(`#${bookingCode}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* silent */ }
+  };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50">
@@ -98,7 +120,7 @@ export const Dashboard: React.FC = () => {
     try {
       await navigator.share({
         title: 'My Repair Booking',
-        text: `Track my phone repair: Booking #${booking.id}`,
+        text: `Track my phone repair: Booking #${bookingCode}`,
         url: window.location.href,
       });
     } catch { /* user cancelled */ }
@@ -133,27 +155,50 @@ export const Dashboard: React.FC = () => {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
 
           {/* ── Hero status card ─────────────────────────────────── */}
-          <div className="relative bg-gradient-to-br from-blue-600 to-blue-700 rounded-3xl p-6 text-white shadow-xl shadow-blue-200 overflow-hidden mb-3">
+          <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 text-white shadow-xl shadow-gray-900/20 overflow-hidden mb-3">
             {/* Background decoration */}
             <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-white/5 -translate-y-12 translate-x-12" />
             <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full bg-white/5 translate-y-8 -translate-x-8" />
 
             <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <p className="text-blue-200 text-xs font-semibold uppercase tracking-widest mb-1">Booking ID</p>
-                  <p className="text-3xl font-black tracking-tight">#{booking.id}</p>
+              {/* Booking ID row — matches Confirmation.tsx exactly */}
+              <div className="flex items-start justify-between mb-5">
+                <div className="min-w-0">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">
+                    Booking ID
+                  </p>
+                  <p
+                    className="text-3xl font-black leading-tight tracking-tight sm:text-4xl"
+                    data-testid="booking-id"
+                  >
+                    #{bookingCode}
+                  </p>
                 </div>
-                <span className={`px-3 py-1.5 rounded-full text-xs font-bold border bg-white/20 text-white border-white/30 flex items-center gap-1.5`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[booking.status] || 'bg-white'}`} />
-                  {booking.status?.replace('_', ' ').toUpperCase()}
-                </span>
+
+                <div className="flex items-center gap-2 self-start">
+                  {/* Copy button */}
+                  <button
+                    onClick={copyBookingId}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 transition-all hover:bg-white/20"
+                    title="Copy booking ID"
+                  >
+                    {copied
+                      ? <CheckCircle className="h-4 w-4 text-green-400" />
+                      : <Copy className="h-4 w-4 text-gray-300" />
+                    }
+                  </button>
+                  {/* Status badge */}
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-white/10 text-white border border-white/20">
+                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[booking.status] || 'bg-white'}`} />
+                    {booking.status?.replace('_', ' ').toUpperCase()}
+                  </span>
+                </div>
               </div>
 
               {/* Progress */}
-              <div className="mb-4">
+              <div className="mb-5">
                 <div className="flex justify-between text-xs mb-2">
-                  <span className="text-blue-200">Repair progress</span>
+                  <span className="text-gray-400">Repair progress</span>
                   <span className="font-bold">{progressPct}%</span>
                 </div>
                 <div className="h-2 bg-white/20 rounded-full overflow-hidden">
@@ -166,16 +211,16 @@ export const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Device info */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Device info grid */}
+              <div className="grid grid-cols-2 gap-3 border-t border-white/10 pt-4">
                 {[
-                  { label: 'Device',   val: `${booking.brand} ${booking.model}` },
-                  { label: 'Issue',    val: booking.issue },
-                  { label: 'Pickup',   val: booking.timeSlot },
-                  { label: 'Amount',   val: `₹${booking.price}` },
+                  { label: 'Device',  val: `${booking.brand} ${booking.model}` },
+                  { label: 'Issue',   val: booking.issue },
+                  { label: 'Pickup',  val: booking.timeSlot },
+                  { label: 'Amount',  val: `₹${booking.price}` },
                 ].map(({ label, val }) => (
                   <div key={label}>
-                    <p className="text-blue-200 text-[10px] font-semibold uppercase tracking-wide mb-0.5">{label}</p>
+                    <p className="text-gray-400 text-[10px] font-semibold uppercase tracking-wide mb-0.5">{label}</p>
                     <p className="font-bold text-sm text-white leading-tight">{val}</p>
                   </div>
                 ))}
