@@ -1,34 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
-    />
 
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
-    <link rel="mask-icon" href="/favicon.png" color="#0ea5e9" />
-    <meta name="theme-color" content="#0ea5e9" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18155239072"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
 
-    <meta
-      name="description"
-      content="Device360 — premium mobile repairs in 60 minutes. Watch your repair LIVE with free doorstep pickup and delivery."
-    />
-    <title>Device360 | Premium Live Mobile Repair</title>
-  </head>
-  <body>
-    <!--
+    gtag('config', 'AW-18155239072');
+  </script>
+
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/favicon.png" />
+  <link rel="mask-icon" href="/favicon.png" color="#0ea5e9" />
+  <meta name="theme-color" content="#0ea5e9" />
+
+  <meta name="description"
+    content="Device360 — premium mobile repairs in 60 minutes. Watch your repair LIVE with free doorstep pickup and delivery." />
+  <title>Device360 | Premium Live Mobile Repair</title>
+</head>
+
+<body>
+  <!--
       #recaptcha-root lives here, OUTSIDE #root.
       React never touches this div — it cannot be unmounted.
       The verifier is attached to this div once at page load.
     -->
-    <div
-      id="recaptcha-root"
-      style="position:fixed;bottom:0;right:0;z-index:9999;width:0;height:0;overflow:hidden;"
-    ></div>
-    <div id="root"></div>
-    <script type="module" src="/src/index.tsx"></script>
-  </body>
+  <div id="recaptcha-root" style="position:fixed;bottom:0;right:0;z-index:9999;width:0;height:0;overflow:hidden;"></div>
+  <div id="root"></div>
+  <script type="module" src="/src/index.tsx"></script>
+</body>
+
 </html>
