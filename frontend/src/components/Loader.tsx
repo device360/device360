@@ -4,378 +4,530 @@ interface LoaderProps {
   onComplete: () => void;
 }
 
-export const Loader: React.FC<LoaderProps> = ({ onComplete }) => {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [progress, setProgress] = useState(0);
-  const [label, setLabel] = useState('');
-  const [fadeOut, setFadeOut] = useState(false);
-  const animRef = useRef<number>(0);
+const easeInOutCubic = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-  const labels = ['Diagnosing...', 'Screen Check...', 'Battery Test...', 'Ready!'];
+export const Loader: React.FC<LoaderProps> = ({ onComplete }) => {
+  const [progress, setProgress] = useState(0);
+  const [label, setLabel] = useState('Initializing');
+  const [fadeOut, setFadeOut] = useState(false);
+
+  const starsRef = useRef<HTMLDivElement>(null);
+  const particlesRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>(0);
+  const labelTimerRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
+  const doneRef = useRef(false);
+
+  const labels = ['Initializing', 'Scanning', 'Calibrating', 'Connecting'];
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const wrap = wrapRef.current;
-    if (!canvas || !wrap) return;
+    const starsEl = starsRef.current;
+    const particlesEl = particlesRef.current;
 
-    const W = wrap.offsetWidth;
-    const H = wrap.offsetHeight;
-    canvas.width = W;
-    canvas.height = H;
+    if (starsEl) {
+      starsEl.innerHTML = '';
+      for (let i = 0; i < 56; i += 1) {
+        const s = document.createElement('div');
+        const size = Math.random() * 2 + 1;
+        const left = Math.random() * 100;
+        const top = Math.random() * 100;
+        const dur = 1.8 + Math.random() * 3.2;
+        const delay = Math.random() * 4;
 
-    // Dynamically load Three.js from CDN then init the scene
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-    script.onload = () => initScene(W, H);
-    document.head.appendChild(script);
-
-    return () => {
-      cancelAnimationFrame(animRef.current);
-      document.head.removeChild(script);
-    };
-  }, []);
-
-  const initScene = (W: number, H: number) => {
-    const THREE = (window as any).THREE;
-    const canvas = canvasRef.current;
-    if (!canvas || !THREE) return;
-
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setSize(W, H);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 100);
-    camera.position.set(0, 0, 5.5);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.08));
-    const rimLight = new THREE.DirectionalLight(0x00cfff, 3.5);
-    rimLight.position.set(-3, 2, -2);
-    scene.add(rimLight);
-
-    const rimLight2 = new THREE.DirectionalLight(0x0055ff, 1.5);
-    rimLight2.position.set(3, -1, -3);
-    scene.add(rimLight2);
-
-    const frontLight = new THREE.PointLight(0xffffff, 0.6, 20);
-    frontLight.position.set(0, 2, 4);
-    scene.add(frontLight);
-
-    const fillLight = new THREE.PointLight(0x00aaff, 0.4, 15);
-    fillLight.position.set(2, 0, 3);
-    scene.add(fillLight);
-
-    const phoneGroup = new THREE.Group();
-    scene.add(phoneGroup);
-
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0x111111,
-      metalness: 0.92,
-      roughness: 0.08,
-    });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.2, 0.12), bodyMat);
-    phoneGroup.add(body);
-
-    const screenMat = new THREE.MeshStandardMaterial({
-      color: 0x050510,
-      metalness: 0.1,
-      roughness: 0.05,
-      emissive: 0x001833,
-      emissiveIntensity: 0.6,
-    });
-    const screen = new THREE.Mesh(new THREE.BoxGeometry(0.96, 1.96, 0.005), screenMat);
-    screen.position.set(0, 0, 0.065);
-    phoneGroup.add(screen);
-
-    const notchMat = new THREE.MeshStandardMaterial({
-      color: 0x050510,
-      metalness: 0.1,
-      roughness: 0.1,
-    });
-    const notch = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.015, 16), notchMat);
-    notch.rotation.x = Math.PI / 2;
-    notch.position.set(0, 0.9, 0.068);
-    phoneGroup.add(notch);
-
-    const camDotMat = new THREE.MeshStandardMaterial({
-      color: 0x222222,
-      metalness: 0.8,
-      roughness: 0.2,
-    });
-    const camDot = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.015, 12), camDotMat);
-    camDot.rotation.x = Math.PI / 2;
-    camDot.position.set(0, 0.9, 0.075);
-    phoneGroup.add(camDot);
-
-    const btnMat = new THREE.MeshStandardMaterial({
-      color: 0x1a1a1a,
-      metalness: 0.95,
-      roughness: 0.05,
-    });
-    const btnGeo = new THREE.BoxGeometry(0.02, 0.18, 0.04);
-    const btnR1 = new THREE.Mesh(btnGeo, btnMat);
-    btnR1.position.set(0.57, 0.4, 0);
-    phoneGroup.add(btnR1);
-
-    const btnR2 = new THREE.Mesh(btnGeo, btnMat);
-    btnR2.position.set(0.57, 0.1, 0);
-    phoneGroup.add(btnR2);
-
-    const btnL = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.28, 0.04), btnMat);
-    btnL.position.set(-0.57, 0.2, 0);
-    phoneGroup.add(btnL);
-
-    const homeMat = new THREE.MeshStandardMaterial({
-      color: 0x1a1a1a,
-      metalness: 0.9,
-      roughness: 0.1,
-    });
-    const homeBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.01, 20), homeMat);
-    homeBtn.rotation.x = Math.PI / 2;
-    homeBtn.position.set(0, -0.95, 0.065);
-    phoneGroup.add(homeBtn);
-
-    const camBlockMat = new THREE.MeshStandardMaterial({
-      color: 0x0a0a0a,
-      metalness: 0.95,
-      roughness: 0.05,
-    });
-    const camBlock = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.28, 0.025), camBlockMat);
-    camBlock.position.set(-0.28, -0.45, -0.07);
-    phoneGroup.add(camBlock);
-
-    [[-0.34, -0.38], [-0.22, -0.38], [-0.34, -0.52], [-0.22, -0.52]].forEach(([x, y]) => {
-      const lensMat = new THREE.MeshStandardMaterial({
-        color: 0x050508,
-        metalness: 0.2,
-        roughness: 0.0,
-        emissive: 0x000511,
-        emissiveIntensity: 0.5,
-      });
-      const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.015, 20), lensMat);
-      lens.rotation.x = Math.PI / 2;
-      lens.position.set(x, y, -0.075);
-      phoneGroup.add(lens);
-    });
-
-    const flashMat = new THREE.MeshStandardMaterial({
-      color: 0xffe0a0,
-      metalness: 0.3,
-      roughness: 0.4,
-      emissive: 0x332200,
-      emissiveIntensity: 0.8,
-    });
-    const flash = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.012, 12), flashMat);
-    flash.rotation.x = Math.PI / 2;
-    flash.position.set(-0.16, -0.45, -0.075);
-    phoneGroup.add(flash);
-
-    phoneGroup.rotation.x = 0.12;
-    phoneGroup.rotation.y = 0.3;
-
-    const pCount = 60;
-    const pPos = new Float32Array(pCount * 3);
-    for (let i = 0; i < pCount; i++) {
-      pPos[i * 3] = (Math.random() - 0.5) * 6;
-      pPos[i * 3 + 1] = (Math.random() - 0.5) * 6;
-      pPos[i * 3 + 2] = (Math.random() - 0.5) * 3 - 1;
+        s.style.cssText = `
+          position:absolute;
+          border-radius:50%;
+          background:white;
+          opacity:0;
+          width:${size}px;
+          height:${size}px;
+          top:${top}%;
+          left:${left}%;
+          animation:d360twinkle ${dur}s ease-in-out ${delay}s infinite;
+          --op:${0.25 + Math.random() * 0.55};
+        `;
+        starsEl.appendChild(s);
+      }
     }
 
-    const particles = new THREE.BufferGeometry();
-    particles.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-    const pMat = new THREE.PointsMaterial({
-      color: 0x00aaff,
-      size: 0.018,
-      transparent: true,
-      opacity: 0.35,
-    });
-    const pMesh = new THREE.Points(particles, pMat);
-    scene.add(pMesh);
+    if (particlesEl) {
+      particlesEl.innerHTML = '';
+      const colors = ['#3b82f6', '#60a5fa', '#93c5fd', '#06b6d4', '#818cf8'];
+      for (let i = 0; i < 12; i += 1) {
+        const p = document.createElement('div');
+        const size = (2 + Math.random() * 2.5).toFixed(1);
+        const color = colors[Math.floor(Math.random() * colors.length)];
 
-    let prog = 0;
-    const clock = new THREE.Clock();
-
-    const tick = () => {
-      animRef.current = requestAnimationFrame(tick);
-      const t = clock.getElapsedTime();
-
-      phoneGroup.rotation.y = 0.3 + Math.sin(t * 0.4) * 0.55;
-      phoneGroup.rotation.x = 0.12 + Math.sin(t * 0.25) * 0.08;
-      phoneGroup.position.y = Math.sin(t * 0.6) * 0.07;
-      rimLight.intensity = 3.2 + Math.sin(t * 1.2) * 0.5;
-      screenMat.emissiveIntensity = 0.5 + Math.sin(t * 0.8) * 0.2;
-      pMesh.rotation.y = t * 0.04;
-      pMesh.rotation.x = t * 0.02;
-
-      if (prog < 100) {
-        prog += 1.2; // faster loading
-        const p = Math.min(Math.round(prog), 100);
-        setProgress(p);
-
-        if (p >= 20 && p < 40) setLabel(labels[0]);
-        else if (p >= 40 && p < 60) setLabel(labels[1]);
-        else if (p >= 60 && p < 85) setLabel(labels[2]);
-        else if (p >= 85) setLabel(labels[3]);
-      } else {
-        cancelAnimationFrame(animRef.current);
-        setFadeOut(true);
-        setTimeout(() => onComplete(), 300);
+        p.style.cssText = `
+          position:absolute;
+          border-radius:50%;
+          opacity:0;
+          width:${size}px;
+          height:${size}px;
+          background:${color};
+          left:${28 + Math.random() * 44}%;
+          bottom:${10 + Math.random() * 26}%;
+          animation:d360floatUp ${2.4 + Math.random() * 2.4}s ${Math.random() * 2.2}s ease-in infinite;
+        `;
+        particlesEl.appendChild(p);
       }
+    }
 
-      renderer.render(scene, camera);
+    const reduceMotion =
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+    const duration = reduceMotion ? 1200 : 3600;
+    const startTime = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const raw = Math.min(elapsed / duration, 1);
+      const eased = easeInOutCubic(raw);
+      const nextProgress = Math.min(Math.round(eased * 100), 100);
+
+      setProgress(nextProgress);
+
+      if (raw < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else if (!doneRef.current) {
+        doneRef.current = true;
+        setFadeOut(true);
+        window.setTimeout(() => onComplete(), 420);
+      }
     };
 
-    tick();
-  };
+    rafRef.current = requestAnimationFrame(tick);
+
+    let li = 0;
+    labelTimerRef.current = window.setInterval(() => {
+      li = (li + 1) % labels.length;
+      setLabel(labels[li]);
+    }, reduceMotion ? 1400 : 1000);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      if (labelTimerRef.current) window.clearInterval(labelTimerRef.current);
+    };
+  }, [onComplete]);
 
   return (
-    <div
-      ref={wrapRef}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        background: '#000',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transition: 'opacity 0.35s ease',
-        opacity: fadeOut ? 0 : 1,
-        pointerEvents: fadeOut ? 'none' : 'all',
-      }}
-    >
-      {/* Background REPAIR text */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-          zIndex: 1,
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "'Arial Black', Impact, sans-serif",
-            fontSize: 'clamp(60px,14vw,130px)',
-            fontWeight: 900,
-            color: 'rgba(255,255,255,0.04)',
-            letterSpacing: '0.05em',
-            textTransform: 'uppercase',
-            whiteSpace: 'nowrap',
-            userSelect: 'none',
-          }}
-        >
-          DEVICE360
-        </span>
-      </div>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&display=swap');
 
-      {/* Three.js canvas */}
-      <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, zIndex: 2 }} />
+        :root {
+          --loader-bg: #06091a;
+        }
 
-      {/* Floating tags */}
-      {[
-        { text: 'Screen Repair', x: '18%', y: '28%' },
-        { text: 'Battery Replace', x: '62%', y: '20%' },
-        { text: 'Water Damage', x: '70%', y: '65%' },
-        { text: 'Fast & Reliable', x: '12%', y: '68%' },
-      ].map((tag) => (
-        <div
-          key={tag.text}
-          style={{
-            position: 'absolute',
-            left: tag.x,
-            top: tag.y,
-            fontFamily: 'Arial, sans-serif',
-            fontSize: 11,
-            color: 'rgba(255,255,255,0.28)',
-            letterSpacing: '0.15em',
-            textTransform: 'uppercase',
-            zIndex: 10,
-            pointerEvents: 'none',
-          }}
-        >
-          {tag.text}
-        </div>
-      ))}
+        * {
+          box-sizing: border-box;
+        }
 
-      {/* Bottom bar */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          paddingBottom: 36,
-          gap: 14,
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-          <span
-            style={{
-              fontFamily: "'Arial Black', Arial, sans-serif",
-              fontSize: 22,
-              fontWeight: 900,
-              color: '#fff',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-            }}
-          >
-            Device360
-          </span>
-          <span
-            style={{
-              fontFamily: 'Arial, sans-serif',
-              fontSize: 12,
-              color: 'rgba(255,255,255,0.45)',
-              letterSpacing: '0.22em',
-              textTransform: 'uppercase',
-            }}
-          >
-            Mobile Repair Experts
-          </span>
-        </div>
+        @keyframes d360twinkle {
+          0%, 100% { opacity: 0; transform: scale(0.6); }
+          50%      { opacity: var(--op, 0.7); transform: scale(1); }
+        }
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: 200 }}>
+        @keyframes d360rotateRing {
+          from { transform: rotate(0deg) rotateX(65deg); }
+          to   { transform: rotate(360deg) rotateX(65deg); }
+        }
+
+        @keyframes d360rotateDots {
+          from { transform: rotate(0deg) rotateX(65deg); }
+          to   { transform: rotate(360deg) rotateX(65deg); }
+        }
+
+        @keyframes d360antigravity {
+          0%   { transform: translateY(0px) rotate(-1deg); }
+          25%  { transform: translateY(-12px) rotate(0.5deg); }
+          50%  { transform: translateY(-18px) rotate(1.2deg); }
+          75%  { transform: translateY(-12px) rotate(0.5deg); }
+          100% { transform: translateY(0px) rotate(-1deg); }
+        }
+
+        @keyframes d360shadowPulse {
+          0%   { transform: scaleX(1) scaleY(1); opacity: 0.45; }
+          50%  { transform: scaleX(0.6) scaleY(0.6); opacity: 0.2; }
+          100% { transform: scaleX(1) scaleY(1); opacity: 0.45; }
+        }
+
+        @keyframes d360floatUp {
+          0%   { opacity: 0; transform: translateY(0) scale(1); }
+          18%  { opacity: 0.8; }
+          80%  { opacity: 0.35; }
+          100% { opacity: 0; transform: translateY(-80px) scale(0.3); }
+        }
+
+        @keyframes d360glowPulse {
+          0%, 100% { transform: scale(1); opacity: 0.7; }
+          50%      { transform: scale(1.12); opacity: 1; }
+        }
+
+        @keyframes d360blink {
+          0%, 100% { opacity: 0.5; }
+          50%      { opacity: 1; }
+        }
+
+        .d360-orbit-ring-1 { animation: d360rotateRing 4.8s linear infinite; }
+        .d360-orbit-ring-2 { animation: d360rotateRing 7.5s linear infinite reverse; }
+        .d360-orbit-ring-3 { animation: d360rotateRing 12s linear infinite; }
+
+        .d360-dot-orbit-1 { animation: d360rotateDots 4.8s linear infinite; }
+        .d360-dot-orbit-2 { animation: d360rotateDots 7.5s linear infinite reverse; }
+
+        .d360-logo-float {
+          animation: d360antigravity 3.5s ease-in-out infinite;
+          filter: drop-shadow(0 0 18px rgba(37,99,235,0.7)) drop-shadow(0 20px 40px rgba(37,99,235,0.25));
+          will-change: transform;
+        }
+
+        .d360-shadow-ground { animation: d360shadowPulse 3.5s ease-in-out infinite; }
+        .d360-glow-bg { animation: d360glowPulse 3.5s ease-in-out infinite; }
+        .d360-loading-text { animation: d360blink 1.7s ease-in-out infinite; letter-spacing: 0.18em; }
+        .d360-progress-bar {
+          transform-origin: left center;
+          will-change: transform;
+          transition: transform 120ms linear;
+          box-shadow: 0 0 10px rgba(59,130,246,0.75);
+        }
+
+        .d360-shell {
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          background:
+            radial-gradient(circle at 50% 30%, rgba(37,99,235,0.12) 0%, transparent 35%),
+            var(--loader-bg);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          transition: opacity 0.4s ease;
+          opacity: ${fadeOut ? 0 : 1};
+          pointer-events: ${fadeOut ? 'none' : 'all'};
+          overflow: hidden;
+          padding: 16px;
+        }
+
+        .d360-stars,
+        .d360-particles {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+
+        .d360-glow {
+          position: absolute;
+          width: min(300px, 55vw);
+          height: min(300px, 55vw);
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(37,99,235,0.12) 0%, transparent 70%);
+          pointer-events: none;
+        }
+
+        .d360-scene {
+          position: relative;
+          width: min(200px, 62vw);
+          height: min(200px, 62vw);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transform: translateZ(0);
+        }
+
+        .d360-ring {
+          position: absolute;
+          border-radius: 50%;
+          border: 1.5px solid rgba(59, 130, 246, 0.15);
+        }
+
+        .d360-ring-1 {
+          width: min(180px, 56vw);
+          height: min(180px, 56vw);
+          border-style: dashed;
+          border-color: rgba(59,130,246,0.25);
+        }
+
+        .d360-ring-2 {
+          width: min(220px, 68vw);
+          height: min(220px, 68vw);
+          border-color: rgba(99,179,255,0.15);
+        }
+
+        .d360-ring-3 {
+          width: min(260px, 80vw);
+          height: min(260px, 80vw);
+          border-style: dotted;
+          border-color: rgba(59,130,246,0.1);
+        }
+
+        .d360-orbit {
+          position: absolute;
+          border-radius: 50%;
+        }
+
+        .d360-dot {
+          position: absolute;
+          top: -4px;
+          left: calc(50% - 4px);
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+
+        .d360-dot-blue {
+          background: radial-gradient(circle at 30% 30%, #93c5fd, #2563eb);
+          box-shadow: 0 0 8px #3b82f6, 0 0 16px rgba(59,130,246,0.4);
+        }
+
+        .d360-dot-cyan {
+          width: 6px;
+          height: 6px;
+          top: -3px;
+          left: calc(50% - 3px);
+          background: radial-gradient(circle at 30% 30%, #a5f3fc, #0891b2);
+          box-shadow: 0 0 8px #06b6d4, 0 0 16px rgba(6,182,212,0.4);
+        }
+
+        .d360-brand {
+          margin-top: 26px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          z-index: 10;
+          text-align: center;
+        }
+
+        .d360-brand-name {
+          font-family: 'Rajdhani', sans-serif;
+          font-size: clamp(22px, 6vw, 28px);
+          font-weight: 700;
+          letter-spacing: clamp(2px, 0.9vw, 4px);
+          color: white;
+          text-transform: uppercase;
+          line-height: 1;
+        }
+
+        .d360-brand-name span {
+          color: #3b82f6;
+        }
+
+        .d360-progress-wrap {
+          width: min(180px, 68vw);
+          height: 3px;
+          background: rgba(255,255,255,0.08);
+          border-radius: 999px;
+          overflow: hidden;
+          margin-top: 2px;
+        }
+
+        .d360-loading-text {
+          font-family: 'Rajdhani', sans-serif;
+          font-size: clamp(10px, 3vw, 11px);
+          color: rgba(147,197,253,0.72);
+          text-transform: uppercase;
+        }
+
+        .d360-progress-bar-inner {
+          width: 100%;
+          height: 100%;
+          transform: scaleX(${Math.max(progress, 0) / 100});
+          transform-origin: left center;
+          background: linear-gradient(90deg, #1d4ed8, #3b82f6, #93c5fd);
+          border-radius: 999px;
+        }
+
+        @media (max-width: 640px) {
+          .d360-shell {
+            justify-content: center;
+            padding: 18px 14px 26px;
+          }
+
+          .d360-scene {
+            width: min(210px, 78vw);
+            height: min(210px, 78vw);
+          }
+
+          .d360-ring-1 {
+            width: min(180px, 66vw);
+            height: min(180px, 66vw);
+          }
+
+          .d360-ring-2 {
+            width: min(224px, 82vw);
+            height: min(224px, 82vw);
+          }
+
+          .d360-ring-3 {
+            width: min(260px, 94vw);
+            height: min(260px, 94vw);
+          }
+
+          .d360-brand {
+            margin-top: 22px;
+            gap: 8px;
+          }
+
+          .d360-progress-wrap {
+            width: min(150px, 72vw);
+          }
+
+          .d360-glow {
+            width: min(240px, 78vw);
+            height: min(240px, 78vw);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .d360-orbit-ring-1,
+          .d360-orbit-ring-2,
+          .d360-orbit-ring-3,
+          .d360-dot-orbit-1,
+          .d360-dot-orbit-2,
+          .d360-logo-float,
+          .d360-shadow-ground,
+          .d360-glow-bg,
+          .d360-loading-text,
+          .d360-progress-bar,
+          .d360-progress-bar-inner {
+            animation: none !important;
+            transition: none !important;
+          }
+        }
+      `}</style>
+
+      <div className="d360-shell">
+        <div ref={starsRef} className="d360-stars" />
+
+        <div className="d360-glow" />
+
+        <div className="d360-scene">
+          <div className="d360-ring d360-ring-1 d360-orbit-ring-1" />
+          <div className="d360-ring d360-ring-2 d360-orbit-ring-2" />
+          <div className="d360-ring d360-ring-3 d360-orbit-ring-3" />
+
           <div
-            style={{
-              width: '100%',
-              height: 2,
-              background: 'rgba(255,255,255,0.1)',
-              borderRadius: 2,
-              overflow: 'hidden',
-            }}
+            className="d360-orbit d360-dot-orbit-1"
+            style={{ width: 'min(180px, 56vw)', height: 'min(180px, 56vw)' }}
           >
+            <div className="d360-dot d360-dot-blue" />
+          </div>
+
+          <div
+            className="d360-orbit d360-dot-orbit-2"
+            style={{ width: 'min(220px, 68vw)', height: 'min(220px, 68vw)' }}
+          >
+            <div className="d360-dot d360-dot-cyan" />
+          </div>
+
+          <div ref={particlesRef} className="d360-particles" />
+
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg
+              className="d360-logo-float"
+              width="90"
+              height="90"
+              viewBox="0 0 200 200"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ width: 'clamp(96px, 28vw, 120px)', height: 'clamp(96px, 28vw, 120px)' }}
+            >
+              <defs>
+                <linearGradient id="d360dGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#60a5fa" />
+                  <stop offset="100%" stopColor="#1d4ed8" />
+                </linearGradient>
+                <linearGradient id="d360orbitGrad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#1d4ed8" stopOpacity="0" />
+                  <stop offset="40%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.6" />
+                </linearGradient>
+                <filter id="d360glow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                  <feMerge>
+                    <feMergeNode in="coloredBlur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+
+              <rect x="62" y="18" width="76" height="164" rx="16" fill="#0f172a" stroke="#1e3a8a" strokeWidth="3" />
+              <rect x="68" y="28" width="64" height="144" rx="10" fill="#0c1a3a" />
+              <rect x="88" y="21" width="24" height="4" rx="2" fill="#1e3a8a" />
+              <rect x="84" y="170" width="32" height="5" rx="2.5" fill="#1e3a8a" />
+
+              <text
+                x="75"
+                y="130"
+                fontFamily="Arial Black, sans-serif"
+                fontSize="88"
+                fontWeight="900"
+                fill="url(#d360dGrad)"
+                filter="url(#d360glow)"
+              >
+                D
+              </text>
+
+              <path
+                d="M30 135 Q100 95 175 60"
+                stroke="url(#d360orbitGrad)"
+                strokeWidth="5"
+                fill="none"
+                strokeLinecap="round"
+                filter="url(#d360glow)"
+              />
+              <circle cx="175" cy="60" r="6" fill="#93c5fd" filter="url(#d360glow)" />
+
+              <path
+                d="M25 80 Q100 130 175 140"
+                stroke="rgba(59,130,246,0.35)"
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray="4 6"
+              />
+            </svg>
+
             <div
+              className="d360-shadow-ground"
               style={{
-                height: '100%',
-                width: `${progress}%`,
-                background: 'linear-gradient(90deg,#00d4ff,#0099cc)',
-                borderRadius: 2,
-                transition: 'width 0.2s ease',
+                position: 'absolute',
+                bottom: -28,
+                width: 72,
+                height: 16,
+                background: 'radial-gradient(ellipse, rgba(37,99,235,0.35) 0%, transparent 70%)',
+                borderRadius: '50%',
               }}
             />
           </div>
-          <span
+        </div>
+
+        <div className="d360-brand">
+          <div className="d360-brand-name">
+            Device<span>360</span>
+          </div>
+
+          <div className="d360-progress-wrap">
+            <div className="d360-progress-bar-inner" />
+          </div>
+
+          <div className="d360-loading-text">{label}</div>
+
+          <div
             style={{
-              fontFamily: 'Arial, sans-serif',
-              fontSize: 11,
-              color: 'rgba(255,255,255,0.4)',
-              letterSpacing: '0.2em',
+              marginTop: 2,
+              fontSize: 10,
+              letterSpacing: '0.18em',
+              color: 'rgba(147,197,253,0.45)',
+              fontFamily: "'Rajdhani', sans-serif",
             }}
           >
-            {label || `${progress}%`}
-          </span>
+            {progress}%
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
