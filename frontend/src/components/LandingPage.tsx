@@ -530,6 +530,7 @@ export const LandingPage: React.FC = () => {
       window.removeEventListener('device360-location-change', sync as EventListener);
     };
   }, [location]);
+  
 
   useEffect(() => {
     document.title =
