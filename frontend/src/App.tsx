@@ -15,12 +15,13 @@ import { Layout } from './components/Layout';
 import { HomePage } from './components/HomePage';
 import { Dashboard } from './components/Dashboard';
 import { AdminDashboard } from './components/AdminDashboard';
+import { TechnicianDashboard } from './components/TechnicianDashboard';
+import { MarketingDashboard } from './components/MarketingDashboard';
 import { Loader } from './components/Loader';
 import { AdminLogin } from './admin/AdminLogin';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LandingPage } from './components/LandingPage';
 
-// Step components
 import { BrandSelection } from './components/steps/BrandSelection';
 import { ModelSelection } from './components/steps/ModelSelection';
 import { IssueSelection } from './components/steps/IssueSelection';
@@ -30,28 +31,22 @@ import { Confirmation } from './components/steps/Confirmation';
 
 import type { FormData } from './types';
 
-// ─── Repair step order ────────────────────────────────────────────────────────
-// Each slug maps to a step component. The order here drives prev/next navigation.
+// ─── Repair step config ───────────────────────────────────────────────────────
 const REPAIR_STEPS = [
-  { slug: '',            label: 'Brand',        Component: BrandSelection },
-  { slug: 'model',       label: 'Model',        Component: ModelSelection },
-  { slug: 'issue',       label: 'Issue',        Component: IssueSelection },
-  { slug: 'pricing',     label: 'Pricing',      Component: PricingDisplay },
-  { slug: 'contact',     label: 'Contact',      Component: LeadCapture },
-  { slug: 'confirmation',label: 'Confirmation', Component: Confirmation },
+  { slug: '',             label: 'Brand',        Component: BrandSelection },
+  { slug: 'model',        label: 'Model',        Component: ModelSelection },
+  { slug: 'issue',        label: 'Issue',        Component: IssueSelection },
+  { slug: 'pricing',      label: 'Pricing',      Component: PricingDisplay },
+  { slug: 'contact',      label: 'Contact',      Component: LeadCapture },
+  { slug: 'confirmation', label: 'Confirmation', Component: Confirmation },
 ] as const;
 
 type StepSlug = (typeof REPAIR_STEPS)[number]['slug'];
 
-// ─── Shared form-data store (lifted above the router) ─────────────────────────
-// We keep this outside components so it survives route changes inside the same
-// BrowserRouter session. For multi-tab / refresh persistence you could swap
-// this for sessionStorage, but for in-session tracking this is enough.
+// Module-level shared form data (survives route changes in same session)
 let sharedFormData: FormData = {} as FormData;
 
-// ─── RepairStepPage ────────────────────────────────────────────────────────────
-// Renders the correct step component based on the current URL, and wires
-// goToNextStep / goToPreviousStep to push the matching route.
+// ─── RepairStepPage ───────────────────────────────────────────────────────────
 const RepairStepPage: React.FC<{ slug: StepSlug }> = ({ slug }) => {
   const navigate = useNavigate();
   const { location } = useParams<{ location?: string }>();
@@ -69,8 +64,7 @@ const RepairStepPage: React.FC<{ slug: StepSlug }> = ({ slug }) => {
   const goToNextStep = () => {
     const next = REPAIR_STEPS[stepIndex + 1];
     if (!next) return;
-    const path = next.slug ? `${base}/${next.slug}` : base;
-    navigate(path);
+    navigate(next.slug ? `${base}/${next.slug}` : base);
   };
 
   const goToPreviousStep = () => {
@@ -79,8 +73,7 @@ const RepairStepPage: React.FC<{ slug: StepSlug }> = ({ slug }) => {
       return;
     }
     const prev = REPAIR_STEPS[stepIndex - 1];
-    const path = prev.slug ? `${base}/${prev.slug}` : base;
-    navigate(path);
+    navigate(prev.slug ? `${base}/${prev.slug}` : base);
   };
 
   return (
@@ -99,33 +92,29 @@ const LegacyRepairRedirect: React.FC = () => {
   return <Navigate to={location ? `/${location}/repair` : '/repair'} replace />;
 };
 
-// ─── RepairFlowShell (optional: shared progress bar / header for repair steps) ─
-// Wrap the repair routes in a common shell so you can add a stepper UI later.
-const RepairFlowShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { pathname } = useLocation();
+// ─── RepairFlowShell ──────────────────────────────────────────────────────────
+const RepairFlowShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="repair-flow-shell">{children}</div>
+);
 
-  // Derive active step index from URL so you can render a progress bar here
-  const activeSlug = pathname.split('/repair')[1]?.replace(/^\//, '') ?? '' as StepSlug;
-  const activeIndex = REPAIR_STEPS.findIndex((s) => s.slug === activeSlug);
-
-  return (
-    <div className="repair-flow-shell">
-      {/* Optional: uncomment to add a top progress bar
-      <div className="progress-bar-container">
-        {REPAIR_STEPS.map((s, i) => (
-          <div
-            key={s.slug}
-            className={`progress-step ${i <= activeIndex ? 'active' : ''}`}
-          >
-            {s.label}
-          </div>
-        ))}
-      </div>
-      */}
-      {children}
-    </div>
-  );
-};
+// ─── Helper: build repair routes ──────────────────────────────────────────────
+const repairRoutes = (prefix: string) =>
+  REPAIR_STEPS.map(({ slug }) => {
+    const path = slug
+      ? `${prefix}/repair/${slug}`
+      : `${prefix}/repair`;
+    return (
+      <Route
+        key={path}
+        path={path}
+        element={
+          <RepairFlowShell>
+            <RepairStepPage slug={slug} />
+          </RepairFlowShell>
+        }
+      />
+    );
+  });
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 function App() {
@@ -143,140 +132,63 @@ function App() {
         }}
       >
         <BrowserRouter>
-          <Layout>
-            <Routes>
-              {/* ── Marketing / home ── */}
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/:location" element={<HomePage />} />
+          <Routes>
+            {/* ── Staff portals — NO Layout wrapper ── */}
+            <Route path="/admin/login" element={<AdminLogin />} />
 
-              {/* ── Repair flow — each step gets its own URL ── */}
-              {/*
-               *  /repair                   → Brand selection
-               *  /repair/model             → Model selection
-               *  /repair/issue             → Issue selection
-               *  /repair/pricing           → Pricing
-               *  /repair/contact           → Lead capture (phone → OTP → name → address → declaration)
-               *  /repair/confirmation      → Booking confirmed
-               *
-               *  All repeated under /:location/repair/* for city-specific entry points.
-               */}
-              <Route
-                path="/repair"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="" />
-                  </RepairFlowShell>
-                }
-              />
-              <Route
-                path="/repair/model"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="model" />
-                  </RepairFlowShell>
-                }
-              />
-              <Route
-                path="/repair/issue"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="issue" />
-                  </RepairFlowShell>
-                }
-              />
-              <Route
-                path="/repair/pricing"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="pricing" />
-                  </RepairFlowShell>
-                }
-              />
-              <Route
-                path="/repair/contact"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="contact" />
-                  </RepairFlowShell>
-                }
-              />
-              <Route
-                path="/repair/confirmation"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="confirmation" />
-                  </RepairFlowShell>
-                }
-              />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
 
-              {/* ── Location-prefixed repair routes (mirrors above) ── */}
-              <Route
-                path="/:location/repair"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="" />
-                  </RepairFlowShell>
-                }
-              />
-              <Route
-                path="/:location/repair/model"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="model" />
-                  </RepairFlowShell>
-                }
-              />
-              <Route
-                path="/:location/repair/issue"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="issue" />
-                  </RepairFlowShell>
-                }
-              />
-              <Route
-                path="/:location/repair/pricing"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="pricing" />
-                  </RepairFlowShell>
-                }
-              />
-              <Route
-                path="/:location/repair/contact"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="contact" />
-                  </RepairFlowShell>
-                }
-              />
-              <Route
-                path="/:location/repair/confirmation"
-                element={
-                  <RepairFlowShell>
-                    <RepairStepPage slug="confirmation" />
-                  </RepairFlowShell>
-                }
-              />
+            <Route
+              path="/technician"
+              element={
+                <ProtectedRoute role="technician">
+                  <TechnicianDashboard />
+                </ProtectedRoute>
+              }
+            />
 
-              {/* ── Legacy: /repair/:location → /:location/repair ── */}
-              <Route path="/repair/:location" element={<LegacyRepairRedirect />} />
+            <Route
+              path="/marketing"
+              element={
+                <ProtectedRoute role="marketing">
+                  <MarketingDashboard />
+                </ProtectedRoute>
+              }
+            />
 
-              {/* ── Booking tracker ── */}
-              <Route path="/dashboard/:bookingId" element={<Dashboard />} />
+            {/* ── Public routes — inside Layout ── */}
+            <Route
+              path="/*"
+              element={
+                <Layout>
+                  <Routes>
+                    {/* Marketing / home */}
+                    <Route path="/" element={<LandingPage />} />
+                    <Route path="/:location" element={<HomePage />} />
 
-              {/* ── Admin ── */}
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute>
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
-          </Layout>
+                    {/* Repair flow — /repair/* */}
+                    {repairRoutes('')}
+
+                    {/* Repair flow — /:location/repair/* */}
+                    {repairRoutes('/:location')}
+
+                    {/* Legacy redirect */}
+                    <Route path="/repair/:location" element={<LegacyRepairRedirect />} />
+
+                    {/* Customer booking tracker */}
+                    <Route path="/dashboard/:bookingId" element={<Dashboard />} />
+                  </Routes>
+                </Layout>
+              }
+            />
+          </Routes>
         </BrowserRouter>
 
         <Toaster position="top-center" richColors />

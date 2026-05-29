@@ -1,108 +1,124 @@
-import express from "express";
-import nodemailer from "nodemailer";
+import express from 'express';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 
 const router = express.Router();
 
-const DEFAULT_USERNAME = "Admin";
-const DEFAULT_PASSWORD = "Admin@device360";
-const ADMIN_EMAIL = "device360recycle@gmail.com";
+// ─── Role config ──────────────────────────────────────────────────────────────
+// Phone numbers per role — OTP SMS will be sent here.
+// For SMS we use Fast2SMS (free tier, India). You can also use Twilio.
+// Fallback: if SMS is not configured, OTP is logged to console (dev mode).
+const ROLE_PHONES = {
+  admin:      process.env.ADMIN_PHONE      || '+919164405840',
+  technician: process.env.TECHNICIAN_PHONE || '+919164405840',
+  marketing:  process.env.MARKETING_PHONE  || '+919164405840',
+};
 
-const otpStore = new Map();
+// In-memory OTP store: { [role]: { otp, expiresAt } }
+const otpStore = {};
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+// ─── Generate OTP ─────────────────────────────────────────────────────────────
+function generateOTP() {
+  return crypto.randomInt(100000, 999999).toString();
 }
 
-router.post("/send-otp", async (req, res) => {
-  try {
-    const { username, password } = req.body;
+// ─── Send SMS via Fast2SMS (free, India) ─────────────────────────────────────
+// Sign up at https://www.fast2sms.com — get API key — add FAST2SMS_API_KEY to .env
+async function sendSMS(phone, otp) {
+  const apiKey = process.env.FAST2SMS_API_KEY;
 
-    if (
-      username !== DEFAULT_USERNAME ||
-      password !== DEFAULT_PASSWORD
-    ) {
-      return res.status(401).json({
-        error: "Invalid credentials",
-      });
+  if (!apiKey) {
+    // No SMS provider configured — log to console for dev/testing
+    console.log(`\n╔══════════════════════════════════╗`);
+    console.log(`║  Admin OTP: ${otp}  (to ${phone})  ║`);
+    console.log(`╚══════════════════════════════════╝\n`);
+    return;
+  }
+
+  // Strip country code for Fast2SMS (expects 10-digit Indian number)
+  const number = phone.replace(/^\+91/, '').replace(/\D/g, '');
+
+  const res = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+    method: 'POST',
+    headers: {
+      authorization: apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      route: 'otp',
+      variables_values: otp,
+      numbers: number,
+    }),
+  });
+
+  const data = await res.json();
+  if (!data.return) {
+    throw new Error(`SMS failed: ${JSON.stringify(data)}`);
+  }
+}
+
+// ─── POST /api/admin/send-otp ─────────────────────────────────────────────────
+// Body: { role: 'admin' | 'technician' | 'marketing' }
+router.post('/send-otp', async (req, res) => {
+  try {
+    const { role } = req.body;
+
+    if (!role || !ROLE_PHONES[role]) {
+      return res.status(400).json({ error: 'Invalid role' });
     }
 
-    const code = generateOtp();
+    const phone = ROLE_PHONES[role];
+    const otp = generateOTP();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    otpStore.set(ADMIN_EMAIL, {
-      code,
-      expires: Date.now() + 10 * 60 * 1000,
-    });
+    // Store OTP
+    otpStore[role] = { otp, expiresAt };
 
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: ADMIN_EMAIL,
-      subject: "Device360 Admin Login OTP",
-      html: `
-        <h2>Device360 Admin Verification</h2>
-        <p>Your verification code:</p>
-        <h1>${code}</h1>
-        <p>Expires in 10 minutes.</p>
-      `,
-    });
+    // Send via SMS
+    await sendSMS(phone, otp);
 
     return res.json({
       success: true,
-      message: "OTP sent",
+      message: `OTP sent to ${phone.slice(0, 6)}****${phone.slice(-2)}`,
     });
   } catch (err) {
-    console.error("SEND OTP ERROR:", err);
-
-    return res.status(500).json({
-      error: "OTP send failed",
-    });
+    console.error('admin send-otp error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to send OTP' });
   }
 });
 
-router.post("/verify-otp", (req, res) => {
+// ─── POST /api/admin/verify-otp ──────────────────────────────────────────────
+// Body: { role, otp }
+router.post('/verify-otp', async (req, res) => {
   try {
-    const { otp } = req.body;
+    const { role, otp } = req.body;
 
-    const data = otpStore.get(ADMIN_EMAIL);
-
-    if (!data) {
-      return res.status(400).json({
-        error: "OTP expired",
-      });
+    if (!role || !otp) {
+      return res.status(400).json({ error: 'role and otp are required' });
     }
 
-    if (Date.now() > data.expires) {
-      otpStore.delete(ADMIN_EMAIL);
+    const record = otpStore[role];
 
-      return res.status(400).json({
-        error: "OTP expired",
-      });
+    if (!record) {
+      return res.status(400).json({ error: 'OTP not found. Please request a new one.' });
     }
 
-    if (data.code !== otp) {
-      return res.status(400).json({
-        error: "Invalid OTP",
-      });
+    if (Date.now() > record.expiresAt) {
+      delete otpStore[role];
+      return res.status(400).json({ error: 'OTP expired. Please request a new one.' });
     }
 
-    otpStore.delete(ADMIN_EMAIL);
+    if (record.otp !== otp.trim()) {
+      return res.status(400).json({ error: 'Incorrect OTP. Please try again.' });
+    }
 
-    return res.json({
-      success: true,
-    });
+    // Success — clear OTP
+    delete otpStore[role];
+
+    return res.json({ success: true, message: 'OTP verified successfully' });
   } catch (err) {
-    console.log(err);
-
-    return res.status(500).json({
-      error: "OTP verification failed",
-    });
+    console.error('admin verify-otp error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
