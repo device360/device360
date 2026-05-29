@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Shield, TrendingUp, ChevronRight, ArrowLeft, Loader2 } from 'lucide-react';
-import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
-import { auth } from '../firebaseClient';
 
 const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:5000').replace(/\/$/, '');
 
@@ -64,71 +62,6 @@ const ROLES: Record<Role, RoleConfig> = {
   },
 };
 
-// ─── Verifier singleton — one per page load, never recreated ──────────────────
-declare global {
-  interface Window {
-    __admin_verifier?: RecaptchaVerifier;
-    __admin_verifier_ready?: boolean;
-  }
-}
-
-// Pre-renders the invisible reCAPTCHA widget once at module load time
-// so it's ready before the user even clicks "Send OTP"
-function preWarmVerifier() {
-  if (window.__admin_verifier_ready) return;
-  if (window.__admin_verifier) return; // already in progress
-
-  // Wait for DOM to be ready
-  const init = () => {
-    const el = document.getElementById('admin-recaptcha-root');
-    if (!el) return;
-    window.__admin_verifier = new RecaptchaVerifier(auth, 'admin-recaptcha-root', {
-      size: 'invisible',
-      callback: () => {},
-      'expired-callback': () => { window.__admin_verifier_ready = false; },
-    });
-    window.__admin_verifier.render().then(() => {
-      window.__admin_verifier_ready = true;
-    }).catch(() => {
-      window.__admin_verifier = undefined;
-    });
-  };
-
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(init, 200);
-  } else {
-    window.addEventListener('DOMContentLoaded', () => setTimeout(init, 200));
-  }
-}
-
-// Call immediately when module loads
-preWarmVerifier();
-
-async function getVerifier(): Promise<RecaptchaVerifier> {
-  // Already rendered — fastest path
-  if (window.__admin_verifier && window.__admin_verifier_ready) {
-    return window.__admin_verifier;
-  }
-
-  // Create fresh if missing
-  if (!window.__admin_verifier) {
-    window.__admin_verifier = new RecaptchaVerifier(auth, 'admin-recaptcha-root', {
-      size: 'invisible',
-      callback: () => {},
-      'expired-callback': () => { window.__admin_verifier_ready = false; },
-    });
-  }
-
-  // Render if not yet done
-  if (!window.__admin_verifier_ready) {
-    await window.__admin_verifier.render();
-    window.__admin_verifier_ready = true;
-  }
-
-  return window.__admin_verifier;
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
 export const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -136,7 +69,6 @@ export const AdminLogin: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const [timer, setTimer] = useState(30);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -154,8 +86,9 @@ export const AdminLogin: React.FC = () => {
   }, [step, timer]);
 
   const resetForm = () => {
-    setError(''); setInfo(''); setOtp(['', '', '', '', '', '']);
-    setUsername(''); setPassword(''); setConfirmation(null);
+    setError(''); setInfo('');
+    setOtp(['', '', '', '', '', '']);
+    setUsername(''); setPassword('');
     setLoadingMsg('');
   };
 
@@ -171,50 +104,23 @@ export const AdminLogin: React.FC = () => {
     setError('');
   };
 
-  // ── Credentials → send OTP via Firebase Phone Auth ────────────────────────
-  const sendOTP = async (roleKey: Role): Promise<boolean> => {
-    const cfg = ROLES[roleKey];
+  // ── Step 2: verify credentials + ask backend to send OTP ─────────────────
+  const requestOTP = async (roleKey: Role): Promise<boolean> => {
     setLoading(true);
-    setLoadingMsg('Preparing secure channel…');
+    setLoadingMsg('Sending OTP to admin phone…');
     try {
-      // Step 1: get phone from backend + generate server-side OTP for logging
-      setLoadingMsg('Contacting server…');
       const res = await fetch(`${BACKEND}/api/admin/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: roleKey }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Server error');
-
-      const phone: string = data.phone;
-      if (!phone) throw new Error('No phone returned from server');
-
-      // Step 2: get pre-warmed verifier (fast — already rendered)
-      setLoadingMsg('Initialising reCAPTCHA…');
-      const verifier = await getVerifier();
-
-      // Step 3: trigger Firebase SMS
-      setLoadingMsg('Sending OTP via Firebase…');
-      const result = await signInWithPhoneNumber(auth, phone, verifier);
-      setConfirmation(result);
-
-      setInfo(`OTP sent to ${phone.slice(0, 5)}*****${phone.slice(-2)}`);
+      if (!res.ok) throw new Error(data.error || 'Failed to send OTP');
+      setInfo(data.message || 'OTP sent to the registered admin phone.');
       setTimer(30);
       return true;
     } catch (err: any) {
-      // Reset verifier on error so next attempt gets a fresh one
-      window.__admin_verifier_ready = false;
-
-      if (err.code === 'auth/too-many-requests') {
-        setError('Too many requests. Please wait a few minutes and try again.');
-      } else if (err.code === 'auth/invalid-phone-number') {
-        setError('Invalid phone number configured for this role.');
-      } else if (err.code === 'auth/captcha-check-failed') {
-        setError('Security check failed. Please refresh the page (Ctrl+Shift+R) and try again.');
-      } else {
-        setError(err.message || 'Could not send OTP. Please try again.');
-      }
+      setError(err.message || 'Could not send OTP. Please try again.');
       return false;
     } finally {
       setLoading(false);
@@ -232,35 +138,31 @@ export const AdminLogin: React.FC = () => {
       return;
     }
 
-    const ok = await sendOTP(selectedRole);
+    const ok = await requestOTP(selectedRole);
     if (ok) setStep('otp');
   };
 
   const handleResend = async () => {
     if (!selectedRole) return;
     setOtp(['', '', '', '', '', '']);
-    setConfirmation(null);
     setError('');
-    await sendOTP(selectedRole);
+    await requestOTP(selectedRole);
   };
 
-  // ── Verify OTP ────────────────────────────────────────────────────────────
+  // ── Step 3: submit OTP to backend for verification ────────────────────────
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!role || !selectedRole || !confirmation) return;
+    if (!role || !selectedRole) return;
     const code = otp.join('');
     if (code.length !== 6) return;
     setError('');
     setLoading(true);
     setLoadingMsg('Verifying…');
     try {
-      const cred = await confirmation.confirm(code);
-      const idToken = await cred.user.getIdToken();
-
       const res = await fetch(`${BACKEND}/api/admin/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: selectedRole, idToken }),
+        body: JSON.stringify({ role: selectedRole, otp: code }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Verification failed');
@@ -268,20 +170,13 @@ export const AdminLogin: React.FC = () => {
       localStorage.setItem(role.storageKey, 'true');
       navigate(role.redirectTo, { replace: true });
     } catch (err: any) {
-      if (err.code === 'auth/invalid-verification-code') {
-        setError('Incorrect OTP. Check and try again.');
-      } else if (err.code === 'auth/code-expired') {
-        setError('OTP expired. Please resend.');
-      } else {
-        setError(err.message || 'Verification failed.');
-      }
+      setError(err.message || 'Verification failed. Please try again.');
     } finally {
       setLoading(false);
       setLoadingMsg('');
     }
   };
 
-  // OTP input helpers
   const handleOtpChange = (i: number, val: string) => {
     if (!/^\d*$/.test(val)) return;
     const updated = [...otp]; updated[i] = val.slice(-1); setOtp(updated);
@@ -295,17 +190,13 @@ export const AdminLogin: React.FC = () => {
     if (p.length === 6) { setOtp(p.split('')); inputRefs.current[5]?.focus(); }
   };
 
-  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 px-4 py-10">
-      {/* Invisible reCAPTCHA anchor — outside React tree */}
-      <div id="admin-recaptcha-root"
-        style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 9999, width: 0, height: 0, overflow: 'hidden' }} />
 
       {/* Full-screen loading overlay */}
       {loading && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center">
             <Loader2 className="w-8 h-8 text-white animate-spin" />
           </div>
           <p className="text-white font-semibold text-sm tracking-wide">{loadingMsg || 'Please wait…'}</p>
@@ -380,13 +271,13 @@ export const AdminLogin: React.FC = () => {
                     autoComplete="current-password" required />
                 </div>
                 {error && (
-                  <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200">
                     <p className="text-red-600 text-sm font-medium">{error}</p>
                   </div>
                 )}
                 <button type="submit" disabled={loading}
                   className={`w-full py-3 rounded-xl ${role.btnColor} text-white font-bold transition disabled:opacity-60 text-sm flex items-center justify-center gap-2`}>
-                  Send OTP via Firebase →
+                  Send OTP to Admin Phone →
                 </button>
               </form>
             </div>
@@ -408,7 +299,7 @@ export const AdminLogin: React.FC = () => {
 
               <h2 className="text-lg font-black text-gray-900 mb-1">Enter OTP</h2>
               <p className="text-sm text-gray-400 mb-5">
-                Enter the 6-digit code sent to your phone via Firebase SMS
+                Enter the 6-digit code sent to the admin phone
               </p>
 
               <form onSubmit={handleVerify} className="space-y-5">
@@ -420,20 +311,15 @@ export const AdminLogin: React.FC = () => {
                       inputMode="numeric"
                       maxLength={1}
                       value={d}
-                      disabled={!confirmation}
                       onChange={(e) => handleOtpChange(i, e.target.value)}
                       onKeyDown={(e) => handleOtpKey(i, e)}
-                      className="w-11 h-12 text-center text-lg font-black border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all disabled:opacity-40 disabled:bg-gray-50"
+                      className="w-11 h-12 text-center text-lg font-black border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-all"
                     />
                   ))}
                 </div>
 
-                {!confirmation && (
-                  <p className="text-center text-xs text-gray-400 animate-pulse">Waiting for OTP to arrive…</p>
-                )}
-
                 {error && (
-                  <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200">
                     <p className="text-red-600 text-sm font-medium">{error}</p>
                   </div>
                 )}
@@ -450,8 +336,8 @@ export const AdminLogin: React.FC = () => {
                 </p>
 
                 <button type="submit"
-                  disabled={otp.join('').length !== 6 || !confirmation}
-                  className={`w-full py-3 rounded-xl ${role.btnColor} text-white font-bold transition disabled:opacity-40 text-sm flex items-center justify-center gap-2`}>
+                  disabled={otp.join('').length !== 6 || loading}
+                  className={`w-full py-3 rounded-xl ${role.btnColor} text-white font-bold transition disabled:opacity-40 text-sm`}>
                   Verify &amp; Login
                 </button>
               </form>
@@ -460,7 +346,7 @@ export const AdminLogin: React.FC = () => {
         </div>
 
         <p className="text-center text-gray-500 text-xs mt-6">
-          OTP delivered via Firebase to the registered admin phone
+          OTP delivered via SMS to the registered admin phone
         </p>
       </div>
     </div>
