@@ -11,3 +11,5 @@ test.txt
 tsconfig.json
 tsconfig.node.json
 vite.config.ts
+git push origin main
+git push rootaccess main
