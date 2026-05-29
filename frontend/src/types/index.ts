@@ -59,6 +59,7 @@ export interface Testimonial {
 }
 
 export interface Lead {
+  technicianNote: string;
   id: string;
   name: string;
   phone: string;

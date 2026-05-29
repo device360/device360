@@ -3,11 +3,12 @@ import {
   RefreshCw, Video, Phone, IndianRupee,
   Plus, Trash2, Edit3, Save, X, Package, Wrench, BarChart3,
   TrendingUp, Users, CheckCircle, AlertCircle, Search, ChevronDown,
-  MessageCircle, Menu, Smartphone, Settings, Star, Shield,
+  MessageCircle, Menu, Smartphone, Settings, Star, Shield, LogOut,
   ToggleLeft, ToggleRight, ChevronRight, Copy,
   ExternalLink, Zap, Wifi, Download, Clock,
 } from 'lucide-react';
 import type { Lead } from '../types';
+import { useNavigate } from 'react-router-dom';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
@@ -55,6 +56,8 @@ export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>('bookings');
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const navigate = useNavigate();
+
   const tabs: { id: AdminTab; label: string; short: string; icon: React.ElementType }[] = [
     { id:'bookings',  label:'Bookings',          short:'Bookings',  icon:Package     },
     { id:'services',  label:'Pricing & Services', short:'Pricing',   icon:IndianRupee },
@@ -63,15 +66,24 @@ export const AdminDashboard: React.FC = () => {
     { id:'settings',  label:'Settings',           short:'Settings',  icon:Settings    },
   ];
 
+  const handleSignOut = () => {
+    localStorage.removeItem('adminAuth');
+    localStorage.removeItem('techAuth');
+    localStorage.removeItem('mktAuth');
+    navigate('/admin/login');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 h-14">
             <div className="flex items-center gap-2 flex-shrink-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-200">
-                <Wrench className="w-4 h-4 text-white" />
-              </div>
+              <img
+                src="/fabicon.png"
+                alt="Device360 logo"
+                className="h-10 w-10 rounded-xl object-cover ring-1 ring-gray-100 shadow-md shadow-blue-100"
+              />
               <div className="hidden sm:block">
                 <span className="font-black text-gray-900 text-sm">Device360</span>
                 <span className="text-gray-400 text-sm"> Admin</span>
@@ -86,14 +98,24 @@ export const AdminDashboard: React.FC = () => {
               ))}
             </nav>
             <div className="ml-auto flex items-center gap-2">
-              <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 border border-green-100 text-green-700 text-xs font-bold hover:bg-green-100 transition-all">
-                <MessageCircle className="w-4 h-4 text-green-600" /> WhatsApp
-              </a>
-              <a href="tel:+919876543210"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-all">
-                <Phone className="w-4 h-4 text-blue-600" /> Call
-              </a>
+              <button
+                onClick={() => navigate('/technician')}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-orange-50 border border-orange-100 text-orange-700 text-xs font-bold hover:bg-orange-100 transition-all"
+              >
+                <Wrench className="w-4 h-4 text-orange-600" /> Technician
+              </button>
+              <button
+                onClick={() => navigate('/marketing')}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 border border-green-100 text-green-700 text-xs font-bold hover:bg-green-100 transition-all"
+              >
+                <BarChart3 className="w-4 h-4 text-green-600" /> Marketing
+              </button>
+              <button
+                onClick={handleSignOut}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-red-600 text-xs font-bold hover:bg-red-100 transition-all"
+              >
+                <LogOut className="w-4 h-4 text-red-600" /> Sign out
+              </button>
               <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden p-2 rounded-xl hover:bg-gray-100 text-gray-500">
                 <Menu className="w-5 h-5" />
               </button>

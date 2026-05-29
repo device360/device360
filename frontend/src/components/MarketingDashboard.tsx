@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp, IndianRupee, Users, Star, RefreshCw,
   LogOut, BarChart3, CheckCircle, Package, MessageCircle,
-  ThumbsUp, Award, Zap, ArrowUpRight, Calendar,
+  ThumbsUp, Award, Zap, ArrowUpRight, Calendar, Shield, Wrench,
 } from 'lucide-react';
 import type { Lead } from '../types';
 
@@ -39,7 +39,12 @@ export const MarketingDashboard: React.FC = () => {
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
-  const logout = () => { localStorage.removeItem('mktAuth'); navigate('/admin/login'); };
+  const logout = () => {
+    localStorage.removeItem('adminAuth');
+    localStorage.removeItem('techAuth');
+    localStorage.removeItem('mktAuth');
+    navigate('/admin/login');
+  };
 
   // ─── Derived metrics ─────────────────────────────────────────────────────
   const now = Date.now();
@@ -89,22 +94,36 @@ export const MarketingDashboard: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-md">
-                <TrendingUp className="w-4 h-4 text-white" />
-              </div>
+              <img
+                src="/fabicon.png"
+                alt="Device360 logo"
+                className="h-10 w-10 rounded-xl object-cover ring-1 ring-gray-100 shadow-md shadow-green-100"
+              />
               <div>
                 <span className="font-black text-gray-900 text-sm">Device360</span>
                 <span className="text-green-600 text-sm font-bold"> Marketing</span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                onClick={() => navigate('/admin')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-all"
+              >
+                <Shield className="w-3.5 h-3.5 text-blue-600" /> Admin
+              </button>
+              <button
+                onClick={() => navigate('/technician')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 border border-orange-100 text-orange-700 text-xs font-bold hover:bg-orange-100 transition-all"
+              >
+                <Wrench className="w-3.5 h-3.5 text-orange-600" /> Technician
+              </button>
               <button onClick={fetchLeads} disabled={loading}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold transition-all">
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
               </button>
               <button onClick={logout}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold transition-all">
-                <LogOut className="w-3.5 h-3.5" /> Logout
+                <LogOut className="w-3.5 h-3.5" /> Sign out
               </button>
             </div>
           </div>
