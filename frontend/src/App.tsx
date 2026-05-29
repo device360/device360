@@ -21,6 +21,7 @@ import { Loader } from './components/Loader';
 import { AdminLogin } from './admin/AdminLogin';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LandingPage } from './components/LandingPage';
+import AdLandingPage from './components/AdlandingPage';
 
 import { BrandSelection } from './components/steps/BrandSelection';
 import { ModelSelection } from './components/steps/ModelSelection';
@@ -33,11 +34,11 @@ import type { FormData } from './types';
 
 // ─── Repair step config ───────────────────────────────────────────────────────
 const REPAIR_STEPS = [
-  { slug: '',             label: 'Brand',        Component: BrandSelection },
-  { slug: 'model',        label: 'Model',        Component: ModelSelection },
-  { slug: 'issue',        label: 'Issue',        Component: IssueSelection },
-  { slug: 'pricing',      label: 'Pricing',      Component: PricingDisplay },
-  { slug: 'contact',      label: 'Contact',      Component: LeadCapture },
+  { slug: '', label: 'Brand', Component: BrandSelection },
+  { slug: 'model', label: 'Model', Component: ModelSelection },
+  { slug: 'issue', label: 'Issue', Component: IssueSelection },
+  { slug: 'pricing', label: 'Pricing', Component: PricingDisplay },
+  { slug: 'contact', label: 'Contact', Component: LeadCapture },
   { slug: 'confirmation', label: 'Confirmation', Component: Confirmation },
 ] as const;
 
@@ -100,9 +101,7 @@ const RepairFlowShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 // ─── Helper: build repair routes ──────────────────────────────────────────────
 const repairRoutes = (prefix: string) =>
   REPAIR_STEPS.map(({ slug }) => {
-    const path = slug
-      ? `${prefix}/repair/${slug}`
-      : `${prefix}/repair`;
+    const path = slug ? `${prefix}/repair/${slug}` : `${prefix}/repair`;
     return (
       <Route
         key={path}
@@ -162,6 +161,10 @@ function App() {
                 </ProtectedRoute>
               }
             />
+
+            {/* Ad landing page — outside Layout */}
+            <Route path="/adlanding" element={<AdLandingPage />} />
+            <Route path="/:location/adlanding" element={<AdLandingPage />} />
 
             {/* ── Public routes — inside Layout ── */}
             <Route
