@@ -7,7 +7,6 @@ import {
   Navigate,
   useParams,
   useNavigate,
-  useLocation,
 } from 'react-router-dom';
 import { Toaster } from 'sonner';
 
@@ -32,8 +31,8 @@ import { Confirmation } from './components/steps/Confirmation';
 
 import type { FormData } from './types';
 
-// ─── Repair step config ───────────────────────────────────────────────────────
-const REPAIR_STEPS = [
+// ─── Service step config ──────────────────────────────────────────────────────
+const SERVICE_STEPS = [
   { slug: '', label: 'Brand', Component: BrandSelection },
   { slug: 'model', label: 'Model', Component: ModelSelection },
   { slug: 'issue', label: 'Issue', Component: IssueSelection },
@@ -42,20 +41,20 @@ const REPAIR_STEPS = [
   { slug: 'confirmation', label: 'Confirmation', Component: Confirmation },
 ] as const;
 
-type StepSlug = (typeof REPAIR_STEPS)[number]['slug'];
+type StepSlug = (typeof SERVICE_STEPS)[number]['slug'];
 
 // Module-level shared form data (survives route changes in same session)
 let sharedFormData: FormData = {} as FormData;
 
-// ─── RepairStepPage ───────────────────────────────────────────────────────────
-const RepairStepPage: React.FC<{ slug: StepSlug }> = ({ slug }) => {
+// ─── ServiceStepPage ──────────────────────────────────────────────────────────
+const ServiceStepPage: React.FC<{ slug: StepSlug }> = ({ slug }) => {
   const navigate = useNavigate();
   const { location } = useParams<{ location?: string }>();
   const [formData, setFormData] = useState<FormData>(sharedFormData);
 
-  const base = location ? `/${location}/repair` : '/repair';
-  const stepIndex = REPAIR_STEPS.findIndex((s) => s.slug === slug);
-  const { Component } = REPAIR_STEPS[stepIndex];
+  const base = location ? `/${location}/service` : '/service';
+  const stepIndex = SERVICE_STEPS.findIndex((s) => s.slug === slug);
+  const { Component } = SERVICE_STEPS[stepIndex];
 
   const updateFormData = (partial: Partial<FormData>) => {
     sharedFormData = { ...sharedFormData, ...partial };
@@ -63,7 +62,7 @@ const RepairStepPage: React.FC<{ slug: StepSlug }> = ({ slug }) => {
   };
 
   const goToNextStep = () => {
-    const next = REPAIR_STEPS[stepIndex + 1];
+    const next = SERVICE_STEPS[stepIndex + 1];
     if (!next) return;
     navigate(next.slug ? `${base}/${next.slug}` : base);
   };
@@ -73,7 +72,7 @@ const RepairStepPage: React.FC<{ slug: StepSlug }> = ({ slug }) => {
       navigate(location ? `/${location}` : '/');
       return;
     }
-    const prev = REPAIR_STEPS[stepIndex - 1];
+    const prev = SERVICE_STEPS[stepIndex - 1];
     navigate(prev.slug ? `${base}/${prev.slug}` : base);
   };
 
@@ -87,32 +86,43 @@ const RepairStepPage: React.FC<{ slug: StepSlug }> = ({ slug }) => {
   );
 };
 
-// ─── Legacy redirect ──────────────────────────────────────────────────────────
-const LegacyRepairRedirect: React.FC = () => {
+// ─── Legacy redirects ─────────────────────────────────────────────────────────
+const LegacyRepairLocationRedirect: React.FC = () => {
   const { location } = useParams<{ location?: string }>();
-  return <Navigate to={location ? `/${location}/repair` : '/repair'} replace />;
+  return <Navigate to={location ? `/${location}/service` : '/service'} replace />;
 };
 
-// ─── RepairFlowShell ──────────────────────────────────────────────────────────
-const RepairFlowShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+const LegacyRepairRootRedirect: React.FC = () => {
+  return <Navigate to="/service" replace />;
+};
+
+// ─── ServiceFlowShell ─────────────────────────────────────────────────────────
+const ServiceFlowShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="repair-flow-shell">{children}</div>
 );
 
-// ─── Helper: build repair routes ──────────────────────────────────────────────
-const repairRoutes = (prefix: string) =>
-  REPAIR_STEPS.map(({ slug }) => {
-    const path = slug ? `${prefix}/repair/${slug}` : `${prefix}/repair`;
+// ─── Helper: build service routes ─────────────────────────────────────────────
+const serviceRoutes = (prefix: string) =>
+  SERVICE_STEPS.map(({ slug }) => {
+    const path = slug ? `${prefix}/service/${slug}` : `${prefix}/service`;
     return (
       <Route
         key={path}
         path={path}
         element={
-          <RepairFlowShell>
-            <RepairStepPage slug={slug} />
-          </RepairFlowShell>
+          <ServiceFlowShell>
+            <ServiceStepPage slug={slug} />
+          </ServiceFlowShell>
         }
       />
     );
+  });
+
+const legacyRepairRoutes = (prefix: string) =>
+  SERVICE_STEPS.map(({ slug }) => {
+    const oldPath = slug ? `${prefix}/repair/${slug}` : `${prefix}/repair`;
+    const newPath = slug ? `${prefix}/service/${slug}` : `${prefix}/service`;
+    return <Route key={`legacy-${oldPath}`} path={oldPath} element={<Navigate to={newPath} replace />} />;
   });
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -176,17 +186,23 @@ function App() {
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/:location" element={<HomePage />} />
 
-                    {/* Repair flow — /repair/* */}
-                    {repairRoutes('')}
+                    {/* New service flow */}
+                    {serviceRoutes('')}
+                    {serviceRoutes('/:location')}
 
-                    {/* Repair flow — /:location/repair/* */}
-                    {repairRoutes('/:location')}
+                    {/* Old repair URLs -> new service URLs */}
+                    {legacyRepairRoutes('')}
+                    {legacyRepairRoutes('/:location')}
 
-                    {/* Legacy redirect */}
-                    <Route path="/repair/:location" element={<LegacyRepairRedirect />} />
+                    {/* Extra legacy redirect patterns */}
+                    <Route path="/repair/:location" element={<LegacyRepairLocationRedirect />} />
+                    <Route path="/repair" element={<LegacyRepairRootRedirect />} />
 
                     {/* Customer booking tracker */}
                     <Route path="/dashboard/:bookingId" element={<Dashboard />} />
+
+                    {/* Fallback */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Layout>
               }

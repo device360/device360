@@ -95,7 +95,7 @@ export const MarketingDashboard: React.FC = () => {
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-3">
               <img
-                src="/fabicon.png"
+                src="../../public/favicon.png"
                 alt="Device360 logo"
                 className="h-10 w-10 rounded-xl object-cover ring-1 ring-gray-100 shadow-md shadow-green-100"
               />

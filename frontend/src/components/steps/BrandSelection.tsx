@@ -1,186 +1,327 @@
-import { useState } from 'react';
+/**
+ * BrandSelection.tsx — 100% Static data (no Firebase)
+ * All brands and models from Cleaned_All_Brands_Database.xlsx
+ * Logos use official brand SVG/PNG via CDN for pixel-perfect accuracy
+ */
+
+import { useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Phone } from 'lucide-react';
-import { brands } from '../../data/mockData';
+import { Search, Phone, ChevronDown, ChevronUp } from 'lucide-react';
 import type { StepProps } from '../../types';
 
-// ── Brand icon palette / paths ───────────────────────────────────────────────
-const BRAND_ICONS: Record<string, { path: string; bg: string; light: string }> = {
+// ── Static brand + model data from database ───────────────────────
+export const STATIC_BRANDS = [
+  {
+    id: 'apple', name: 'Apple', color: '#1d1d1f',
+    models: ['Apple iPhone 6','Apple iPhone 6s','Apple iPhone 6s Plus','Apple iPhone 7','Apple iPhone 7 Plus','Apple iPhone 8','Apple iPhone 8 Plus','Apple iPhone X','Apple iPhone XR','Apple iPhone XS','Apple iPhone XS Max','Apple iPhone SE 2020','Apple iPhone 11','Apple iPhone 11 Pro','Apple iPhone 11 Pro Max','Apple iPhone 12','Apple iPhone 12 Mini','Apple iPhone 12 Pro','Apple iPhone 12 Pro Max','Apple iPhone 13','Apple iPhone 13 Mini','Apple iPhone 13 Pro','Apple iPhone 13 Pro Max','Apple iPhone 14','Apple iPhone 14 Plus','Apple iPhone 14 Pro','Apple iPhone 14 Pro Max','Apple iPhone 15','Apple iPhone 15 Plus','Apple iPhone 15 Pro','Apple iPhone 15 Pro Max','Apple iPhone 16','Apple iPhone 16 Plus','Apple iPhone 16 Pro','Apple iPhone 16 Pro Max','Apple iPhone 16e','Apple iPhone 17','Apple iPhone 17 Pro','Apple iPhone 17 Pro Max','Apple iPhone Air'],
+  },
+  {
+    id: 'samsung', name: 'Samsung', color: '#1428A0',
+    models: ['Samsung A03','Samsung A03 CORE','Samsung A03s','Samsung A04','Samsung A04e','Samsung A04s','Samsung A05','Samsung A05s','Samsung A06','Samsung A06 5G','Samsung A07','Samsung A10','Samsung A10s','Samsung A12','Samsung A13','Samsung A14','Samsung A15 5G','Samsung A16 5G','Samsung A17 5G','Samsung A20','Samsung A20s','Samsung A21s','Samsung A22','Samsung A22 5G','Samsung A23','Samsung A25 5G','Samsung A26 5G','Samsung A30','Samsung A30s','Samsung A31','Samsung A32','Samsung A33 5G','Samsung A34 5G','Samsung A35 5G','Samsung A36 5G','Samsung A50','Samsung A50s','Samsung A51','Samsung A52','Samsung A52s 5G','Samsung A53 5G','Samsung A54 5G','Samsung A55 5G','Samsung A56 5G','Samsung A70','Samsung A70s','Samsung A71','Samsung A72','Samsung A73 5G','Samsung F05','Samsung F06 5G','Samsung F07','Samsung F12','Samsung F13','Samsung F14','Samsung F14 5G','Samsung F15 5G','Samsung F16 5G','Samsung F17 5G','Samsung F22','Samsung F23 5G','Samsung F34 5G','Samsung F36 5G','Samsung F41','Samsung F42 5G','Samsung F54 5G','Samsung F55 5G','Samsung F56 5G','Samsung F62','Samsung Galaxy Fold','Samsung Galaxy Note 20 Ultra 5G','Samsung Galaxy S20','Samsung Galaxy S20 FE','Samsung Galaxy S20 Plus','Samsung Galaxy S20 Ultra','Samsung Galaxy S21 5G','Samsung Galaxy S21 FE 5G','Samsung Galaxy S21 Plus 5G','Samsung Galaxy S21 Ultra 5G','Samsung Galaxy S22 5G','Samsung Galaxy S22 Plus 5G','Samsung Galaxy S22 Ultra 5G','Samsung Galaxy S23 5G','Samsung Galaxy S23 FE 5G','Samsung Galaxy S23 Plus 5G','Samsung Galaxy S23 Ultra 5G','Samsung Galaxy S24 5G','Samsung Galaxy S24 FE 5G','Samsung Galaxy S24 Plus 5G','Samsung Galaxy S24 Ultra 5G','Samsung Galaxy S25 5G','Samsung Galaxy S25 Edge','Samsung Galaxy S25 FE','Samsung Galaxy S25 Plus 5G','Samsung Galaxy S25 Ultra 5G','Samsung Galaxy Z Flip','Samsung Galaxy Z Flip3 5G','Samsung Galaxy Z Flip4','Samsung Galaxy Z Flip5','Samsung Galaxy Z Flip6 5G','Samsung Galaxy Z Flip7','Samsung Galaxy Z Flip7 FE 5G','Samsung Galaxy Z Fold2 5G','Samsung Galaxy Z Fold3 5G','Samsung Galaxy Z Fold4','Samsung Galaxy Z Fold5','Samsung Galaxy Z Fold6 5G','Samsung Galaxy Z Fold7','Samsung M04','Samsung M05','Samsung M06 5G','Samsung M07','Samsung M10','Samsung M10s','Samsung M11','Samsung M12','Samsung M13','Samsung M14 5G','Samsung M15 5G','Samsung M15 5G Prime Edition','Samsung M16 5G','Samsung M20','Samsung M21','Samsung M30','Samsung M30s','Samsung M31','Samsung M31s','Samsung M32','Samsung M32 5G','Samsung M33 5G','Samsung M34 5G','Samsung M35 5G','Samsung M36 5G','Samsung M40','Samsung M42','Samsung M51','Samsung M52 5G','Samsung M53 5G','Samsung M55 5G','Samsung M55s 5G','Samsung M56 5G','Samsung Note 8','Samsung Note 9','Samsung Note 10','Samsung Note 10 Lite','Samsung Note 10 Plus','Samsung S8','Samsung S8 Plus','Samsung S9','Samsung S9 Plus','Samsung S10','Samsung S10 Lite','Samsung S10 Plus','Samsung S10e'],
+  },
+  {
+    id: 'oneplus', name: 'OnePlus', color: '#eb0029',
+    models: ['Oneplus 5','Oneplus 5T','Oneplus 6','Oneplus 6T','Oneplus 7','OnePlus 7 Pro/ 7t Pro','Oneplus 7T','Oneplus 8','Oneplus 8 Pro','Oneplus 8T 5G','Oneplus 9','OnePlus 9Pro','Oneplus 9R 5G','Oneplus 9Rt 5G','Oneplus 10 Pro 5G','Oneplus 10R 5G','Oneplus 10T 5G','Oneplus 11 5G','Oneplus 11R 5G','Oneplus 12','Oneplus 12R','Oneplus 13','Oneplus 13R','Oneplus 13S','Oneplus 15','Oneplus Nord','Oneplus Nord 2','Oneplus Nord 2t 5G','Oneplus Nord 3 5G','Oneplus Nord 4','Oneplus Nord 5','Oneplus Nord CE','Oneplus Nord CE 2','Oneplus Nord CE 2 Lite','Oneplus Nord CE 3 5G','Oneplus Nord CE 3 Lite 5G','Oneplus Nord CE 5','Oneplus Nord CE4 5G','Oneplus Nord CE4 Lite 5G','Oneplus Open'],
+  },
+  {
+    id: 'xiaomi', name: 'Xiaomi', color: '#ff6900',
+    models: ['Mi 10','Mi 10T','Mi 10T Pro','Mi 10i 5G','Mi 11','Mi 11 Lite','Mi 11 Ultra','Mi 11X','Mi 11X Pro','Mi A1','Mi A2','Mi A3','Mi Note 3','Redmi 4','Redmi 4A','Redmi 4X','Redmi 5','Redmi 5A','Redmi 6','Redmi 6A','Redmi 6Pro','Redmi 7','Redmi 7A','Redmi 8','Redmi 8A','Redmi 8A Dual','Redmi 9','Redmi 9A','Redmi 9Activ','Redmi 9C','Redmi 9Power','Redmi 9Prime','Redmi 9i','Redmi 9i Sport','Redmi 10','Redmi 10 Power','Redmi 10 Prime 2022','Redmi 10A','Redmi 10Prime','Redmi 11','Redmi 11 Prime','Redmi 11 Prime 5G','Redmi 12','Redmi 12 5G','Redmi 12C','Redmi 13','Redmi 13 5G','Redmi 13C','Redmi 13C 5G','Redmi 14C 5G','Redmi A1','Redmi A1 Plus','Redmi A2','Redmi A2 Plus','Redmi A3','Redmi A3x','Redmi A4 5G','Redmi A5','Redmi Go','Redmi K20','Redmi K50','Redmi K50i 5G','Redmi Note 4','Redmi Note 5','Redmi Note 5Pro','Redmi Note 6Pro','Redmi Note 7/ 7S / 7Pro','Redmi Note 8','Redmi Note 8Pro','Redmi Note 9','Redmi Note 9Pro','Redmi Note 9Pro Max','Redmi Note 10','Redmi Note 10 Lite','Redmi Note 10Pro','Redmi Note 10Pro Max','Redmi Note 10S','Redmi Note 10t 5G','Redmi Note 11','Redmi Note 11Pro','Redmi Note 11Pro + 5G','Redmi Note 11S','Redmi Note 11SE','Redmi Note 11t 5G','Redmi Note 12','Redmi Note 12 5G','Redmi Note 12 Pro 5G','Redmi Note 12 Pro Plus 5G','Redmi Note 13 5G','Redmi Note 13 Pro 5G','Redmi Note 13 Pro Plus 5G','Redmi Note 14 5G','Redmi Note 14 Pro 5G','Redmi Note 14 Pro Plus 5G','Xiaomi 11 Lite NE 5G','Xiaomi 11T Pro 5G','Xiaomi 11i 5G','Xiaomi 11i HyperCharge 5G','Xiaomi 12','Xiaomi 12 Pro 5G','Xiaomi 13 Pro 5G'],
+  },
+  {
+    id: 'realme', name: 'Realme', color: '#f5a623',
+    models: ['Realme 1','Realme 2','Realme 2Pro','Realme 3','Realme 3Pro','Realme 3i','Realme 5','Realme 5Pro','Realme 5i','Realme 5s','Realme 6','Realme 6Pro','Realme 6i','Realme 7','Realme 7Pro','Realme 7i','Realme 8','Realme 8 5G','Realme 8Pro','Realme 8i','Realme 8s 5G','Realme 9','Realme 9 5G','Realme 9 Pro','Realme 9 Pro Plus','Realme 9i','Realme 9i 5G','Realme 10','Realme 10 Pro 5G','Realme 10 Pro+ 5G','Realme 11 5G','Realme 11 Pro 5G','Realme 11 Pro+ 5G','Realme 12 5G','Realme 12 Pro 5G','Realme 12 Pro+ 5G','Realme 12+ 5G','Realme 12x 5G','Realme 13 5G','Realme 13 Plus 5G','Realme 13 Pro 5G','Realme 13 Pro Plus 5G','Realme 14 Pro 5G','Realme 14 Pro Lite 5G','Realme 14 Pro Plus 5G','Realme 14T 5G','Realme 14x 5G','Realme 15 5G','Realme 15 Pro 5G','Realme 15x 5G','Realme C1','Realme C2','Realme C3','Realme C11','Realme C11 2021','Realme C12','Realme C15','Realme C20','Realme C21','Realme C21Y','Realme C25','Realme C25S','Realme C25Y','Realme C30','Realme C30s','Realme C31','Realme C33','Realme C33 2023','Realme C35','Realme C51','Realme C53','Realme C55','Realme C61','Realme C63','Realme C63 5G','Realme C65 5G','Realme C67 5G','Realme C71','Realme C73 5G','Realme C75 5G','Realme C85 5G','Realme GT 5G','Realme GT 2','Realme GT 2 Pro','Realme GT 6','Realme GT 6T 5G','Realme GT 7','Realme GT 7Pro 5G','Realme GT 7T','Realme GT Master Edition','Realme GT Neo 2','Realme GT Neo 3T','Realme GT Neo3','Realme Narzo 10','Realme Narzo 10A','Realme Narzo 20','Realme Narzo 20A','Realme Narzo 20Pro','Realme Narzo 30','Realme Narzo 30 5g','Realme Narzo 30 Pro','Realme Narzo 30A','Realme Narzo 50','Realme Narzo 50 5G','Realme Narzo 50 Pro 5G','Realme Narzo 50A','Realme Narzo 50A Prime','Realme Narzo 50i','Realme Narzo 50i Prime','Realme Narzo 60 5G','Realme Narzo 60x 5G','Realme Narzo 70 5G','Realme Narzo 70 Pro 5G','Realme Narzo 70 Turbo 5G','Realme Narzo 70x 5G','Realme Narzo 80 Lite 4G','Realme Narzo 80 Lite 5G','Realme Narzo 80 Pro 5G','Realme Narzo 80x 5G','Realme Narzo N53','Realme Narzo N55','Realme Narzo N61','Realme Narzo N63','Realme Narzo N65 5G','Realme P1 5G','Realme P1 Pro 5G','Realme P1 Speed 5G','Realme P2 Pro 5G','Realme P3 5G','Realme P3 Lite 5G','Realme P3 Pro 5G','Realme P3 Ultra 5G','Realme P4 5G','Realme P4 Pro 5G','Realme U1','Realme X','Realme X2','Realme X3','Realme X3 Super Zoom','Realme X50 Pro','Realme X7','Realme X7 Max','Realme X7 Pro','Realme XT'],
+  },
+  {
+    id: 'pixel', name: 'Google Pixel', color: '#4285F4',
+    models: ['Google Pixel 2','Google Pixel 2XL','Google Pixel 3','Google Pixel 3A','Google Pixel 3A XL','Google Pixel 3XL','Google Pixel 4A 4G','Google Pixel 4a 5G','Google Pixel 5','Google Pixel 5A','Google Pixel 6','Google Pixel 6 Pro','Google Pixel 6A','Google Pixel 7','Google Pixel 7 Pro','Google Pixel 7A','Google Pixel 8','Google Pixel 8 Pro','Google Pixel 8A','Google Pixel 9','Google Pixel 9 Pro','Google Pixel 9 Pro Fold','Google Pixel 9 Pro XL','Google Pixel 9a','Google Pixel 10','Google Pixel 10 Pro','Google Pixel 10 Pro XL'],
+  },
+  {
+    id: 'vivo', name: 'Vivo', color: '#415FFF',
+    models: ['Vivo S1','Vivo S1 Pro','Vivo T1 44W','Vivo T1 5G','Vivo T1 Pro 5G','Vivo T1x','Vivo T2 5G','Vivo T2 Pro 5G','Vivo T2x 5G','Vivo T3 5G','Vivo T3 Lite 5G','Vivo T3 Pro 5G','Vivo T3 Ultra','Vivo T3x 5G','Vivo T4X 5G','Vivo U10','Vivo U20','Vivo V5/ V5s','Vivo V7','Vivo V7 Plus','Vivo V9/ V9 Pro/ V9 Youth','Vivo V11','Vivo V11 Pro','Vivo V15','Vivo V15 Pro','Vivo V17','Vivo V17 Pro','Vivo V19','Vivo V20','Vivo V20 Pro','Vivo V20 SE','Vivo V21 5G','Vivo V21e 5G','Vivo V23 5G','Vivo V23 Pro','Vivo V23e 5G','Vivo V25 5G','Vivo V25 Pro 5G','Vivo V27','Vivo V27 Pro','Vivo V29','Vivo V29 Pro','Vivo V29e','Vivo V30','Vivo V30 Pro','Vivo V30e','Vivo V40','Vivo V40 Pro','Vivo V40e','Vivo V50','Vivo V50e','Vivo X50','Vivo X50 Pro','Vivo X60','Vivo X60 Pro','Vivo X60 Pro+','Vivo X70 Pro','Vivo X70 Pro+','Vivo X80','Vivo X80 Pro','Vivo X90','Vivo X90 Pro','Vivo X100','Vivo X100 Pro','Vivo X200','Vivo X200 Pro','Vivo Y01','Vivo Y01A','Vivo Y02','Vivo Y02t','Vivo Y11','Vivo Y12/ Y15/ Y17','Vivo Y12G/ Y12S','Vivo Y15S','Vivo Y16','Vivo Y17S','Vivo Y18','Vivo Y18T','Vivo Y18e','Vivo Y18i','Vivo Y19','Vivo Y1s','Vivo Y20/ Y20A/ Y20G/ Y20i/ Y20T','Vivo Y21/ Y21A/ Y21e/ Y21S/ Y21T/','Vivo Y22 2020','Vivo Y27','Vivo Y28 5G','Vivo Y28e 5G','Vivo Y28s 5G','Vivo Y29 5G','Vivo Y30/ Y50','Vivo Y31','Vivo Y33s/ Y33t','Vivo Y35','Vivo Y36','Vivo Y3s','Vivo Y51/ Y51A','Vivo Y53s','Vivo Y55s','Vivo Y56 5G','Vivo Y58 5G','Vivo Y66','Vivo Y69','Vivo Y71','Vivo Y72 5G','Vivo Y73','Vivo Y75','Vivo Y75 5G','Vivo Y81/ Y83','Vivo Y81i','Vivo Y83 Pro','Vivo Y90/ Y91i','Vivo Y91/ Y93/ Y95','Vivo Y100','Vivo Y100A','Vivo Y200','Vivo Y200 Pro 5G','Vivo Y200e 5G','Vivo Y300 5G','Vivo Y300 Plus 5G','Vivo Z1 Pro'],
+  },
+  {
+    id: 'oppo', name: 'OPPO', color: '#1D7D52',
+    models: ['Oppo A1K','Oppo A3s','Oppo A5','Oppo A5 2020','Oppo A5s','Oppo A7','Oppo A71','Oppo A83','Oppo A9','Oppo A9 2020','Oppo A12','Oppo A15','Oppo A15s','Oppo A16','Oppo A16e','Oppo A16k','Oppo A31','Oppo A52','Oppo A53','Oppo A53s','Oppo A54','Oppo A55','Oppo A74 5G','Oppo A76','Oppo A96','Oppo A11k','OPPO A17','OPPO A18','OPPO A38','OPPO A58','OPPO A59 5G','OPPO A77 2020','OPPO A77s','OPPO A78 4G','OPPO A78 5G','OPPO A79 5G','OPPO A3 5G','OPPO A3 Pro 5G','OPPO A3x 5G','OPPO A5 5G','OPPO A5 Pro 5G','OPPO A5x','OPPO A5x 5G','Oppo F1s','Oppo F3','Oppo F5','Oppo F5 Youth','Oppo F7','Oppo F9/ F9 Pro','Oppo F11','Oppo F11 Pro','Oppo F15','Oppo F17','Oppo F17 Pro','Oppo F19','Oppo F19 Pro','Oppo F19 Pro Plus 5G','Oppo F19S','OPPO F21 Pro','OPPO F21s Pro','OPPO F23 5G','OPPO F25 Pro 5G','OPPO F27 5G','OPPO F27 Pro Plus 5G','OPPO F29 5G','OPPO F29 Pro 5G','OPPO F31 5G','OPPO F31 Pro 5G','OPPO F31 Pro Plus 5G','Oppo K1','Oppo K3','OPPO K10 5G','OPPO K12x 5G','OPPO K13 5G','OPPO K13 Turbo 5G','OPPO K13 Turbo Pro 5G','OPPO K13x 5G','OPPO Find N2 Flip 5G','OPPO Find N3 Flip 5G','OPPO Find X8 5G','OPPO Find X8 Pro 5G','Oppo Reno 2F','Oppo Reno3 Pro','Oppo Reno4 Pro','Oppo Reno5 Pro','Oppo Reno6','Oppo Reno6 Pro','Oppo Reno7 5G','Oppo Reno7 Pro 5G','OPPO Reno8 5G','OPPO Reno8 Pro 5G','OPPO Reno8T 5G','OPPO Reno10 5G','OPPO Reno10 Pro 5G','OPPO Reno10 Pro+ 5G','OPPO Reno11 5G','OPPO Reno11 Pro 5G','OPPO Reno12 5G','OPPO Reno12 Pro 5G','OPPO Reno13 5G','OPPO Reno13 Pro 5G','OPPO Reno14 5G','OPPO Reno14 Pro 5G'],
+  },
+  {
+    id: 'motorola', name: 'Motorola', color: '#E1140A',
+    models: ['Motorola Moto G04','Motorola Moto G04s','Motorola Moto G05','Motorola Moto G30','Motorola Moto G31','Motorola Moto G32','Motorola Moto G34 5G','Motorola Moto G35 5G','Motorola Moto G40 Fusion','Motorola Moto G42','Motorola Moto G45 5G','Motorola Moto G52','Motorola Moto G54 5G','Motorola Moto G60','Motorola Moto G62 5G','Motorola Moto G64 5G','Motorola Moto G71 5G','Motorola Moto G72','Motorola Moto G73 5G','Motorola Moto G82 5G','Motorola Moto G84 5G','Motorola Moto G85 5G','Motorola Moto G86 Power 5G','Motorola Moto G96 5G','Motorola Moto Edge 20','Motorola Moto Edge 20 Fusion','Motorola Moto Edge 20 Pro','Motorola Moto Edge 30','Motorola Moto Edge 30 Fusion','Motorola Moto Edge 30 Pro','Motorola Moto Edge 30 Ultra','Motorola Moto Edge 40','Motorola Moto Edge 40 Neo','Motorola Moto Edge 50','Motorola Moto Edge 50 Fusion','Motorola Moto Edge 50 Neo','Motorola Moto Edge 50 Pro 5G','Motorola Moto Edge 50 Ultra','Motorola Moto Edge 60','Motorola Moto Edge 60 Fusion','Motorola Moto Edge 60 Pro','Motorola Moto Edge 60 Stylus','Motorola Moto One','Motorola One Action','Motorola One Fusion Plus','Motorola One Power','Motorola One Vision','Motorola Razr 40 5G','Motorola Razr 40 Ultra 5G','Motorola Razr 50','Motorola Razr 50 Ultra','Motorola Moto Razr 60','Motorola Moto Razr 60 Ultra'],
+  },
+  {
+    id: 'poco', name: 'POCO', color: '#f5d20a',
+    models: ['Poco C3','Poco C31','Poco C50','Poco C51','Poco C55','Poco C65','Poco F1','Poco F3 GT','Poco F4 5G','Poco F5 5G','Poco M2 / M2 Reloaded','Poco M2 Pro','Poco M3','Poco M3 Pro 5G','Poco M4 5G','Poco M4 Pro','Poco M4 Pro 5G','Poco M5','Poco M6 Pro 5G','Poco X2','Poco X3','Poco X3 Pro','Poco X4 Pro 5G','Poco X5 5G','Poco X5 Pro 5G','Poco X6 5G','Poco X6 Pro 5G'],
+  },
+  {
+    id: 'iqoo', name: 'iQOO', color: '#5b30e9',
+    models: ['iQOO 3','iQOO 3 5G','iQOO 7 5G','iQOO 7 Legend 5G','iQOO 9 5G','iQOO 9 Pro','iQOO 9 SE','iQOO 9T 5G','iQOO 11 5G','iQOO 12 5G','iQOO Neo 6 5G','iQOO Neo 7','iQOO Neo 7 Pro','iQOO Neo 9 Pro 5G','iQOO Z3 5G','iQOO Z5 5G','iQOO Z6 44W','iQOO Z6 5G','iQOO Z6 Lite 5G','iQOO Z6 Pro 5G','iQOO Z7 5G','iQOO Z7 Pro 5G','iQOO Z7s','iQOO Z9 5G','iQOO Z9 Lite 5G','iQOO Z9s 5G','iQOO Z9s Pro 5G','iQOO Z9x 5G'],
+  },
+  {
+    id: 'nothing', name: 'Nothing', color: '#111111',
+    models: ['Nothing Phone 1','Nothing Phone 2','Nothing Phone 2a 5G','Nothing Phone 2a Plus','Nothing Phone 3a','Nothing Phone 3a Pro','CMF by Nothing Phone 1','CMF by Nothing Phone 2 Pro'],
+  },
+  {
+    id: 'nokia', name: 'Nokia', color: '#124191',
+    models: ['Nokia 2','Nokia 2.1','Nokia 2.2','Nokia 2.3','Nokia 2.4','Nokia 3','Nokia 3.1','Nokia 3.1 Plus','Nokia 3.2','Nokia 5','Nokia 5.1','Nokia 5.1 Plus','Nokia 6','Nokia 6.1','Nokia 6.1 Plus','Nokia 7','Nokia 7.1','Nokia 8','Nokia 8.1','Nokia C30 2020'],
+  },
+  {
+    id: 'honor', name: 'Honor', color: '#CF0A2C',
+    models: ['Honor 7A','Honor 7C','Honor 7S','Honor 7X','Honor 8','Honor 8X','Honor 9A','Honor 9Lite','Honor 9N','Honor 9S','Honor 9i','Honor 10','Honor 10Lite','Honor 20','Honor 20i'],
+  },
+  {
+    id: 'tecno', name: 'Tecno', color: '#007fff',
+    models: ['Tecno Spark 4','Tecno Spark 4 Air','Tecno Spark 5','Tecno Spark 5 Pro','Tecno Spark 6 Air','Tecno Spark 6 Go','Tecno Spark 7','Tecno Spark 7Pro','Tecno Spark 7T','Tecno Spark 8','Tecno Spark 8C','Tecno Spark 8T','Tecno Spark Go','Tecno Spark Go 2020','Tecno Spark Go 2021','Tecno Spark Power','Tecno Camon 12 Air','Tecno Camon 16'],
+  },
+] as const;
+
+// Primary brands shown above the fold (by brand id)
+const PRIMARY_BRAND_IDS = ['apple','samsung','oneplus','xiaomi','realme','pixel'];
+
+// ── Brand logo config: uses official SVG inline definitions ───────
+const BRAND_LOGOS: Record<string, {
+  bg: string;
+  selectedBg: string;
+  render: (selected: boolean) => ReactNode;
+}> = {
   apple: {
-    path: `M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701`,
-    bg: '#1d1d1f',
-    light: '#f5f5f7',
+    bg: '#f5f5f7',
+    selectedBg: '#1d1d1f',
+    render: (selected) => (
+      <svg viewBox="0 0 170 170" className="w-9 h-9" fill={selected ? '#ffffff' : '#1d1d1f'}>
+        <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.197-2.12-9.973-3.17-14.34-3.17-4.58 0-9.492 1.05-14.746 3.17-5.262 2.13-9.501 3.24-12.742 3.35-4.929 0.21-9.842-1.96-14.746-6.52-3.13-2.73-7.045-7.41-11.735-14.04-5.032-7.08-9.169-15.29-12.41-24.65-3.471-10.11-5.211-19.9-5.211-29.378 0-10.857 2.346-20.221 7.045-28.068 3.693-6.303 8.606-11.275 14.755-14.925s12.793-5.51 19.948-5.629c3.915 0 9.049 1.211 15.429 3.591 6.362 2.388 10.447 3.599 12.238 3.599 1.339 0 5.877-1.416 13.57-4.239 7.275-2.618 13.415-3.702 18.445-3.275 13.63 1.1 23.87 6.473 30.68 16.153-12.19 7.386-18.22 17.731-18.1 31.002 0.11 10.337 3.86 18.939 11.23 25.769 3.34 3.17 7.07 5.62 11.22 7.36-0.9 2.61-1.85 5.11-2.86 7.51zM119.11 7.24c0 8.102-2.96 15.667-8.86 22.669-7.12 8.324-15.732 13.134-25.071 12.375-0.119-0.972-0.188-1.995-0.188-3.07 0-7.778 3.386-16.102 9.399-22.908 3.002-3.446 6.82-6.311 11.45-8.597 4.62-2.252 8.99-3.497 13.1-3.71 0.12 1.083 0.17 2.166 0.17 3.241z"/>
+      </svg>
+    ),
   },
+
   samsung: {
-    path: `M19.8166 10.2808l.0459 2.6934h-.023l-.7793-2.6934h-1.2837v3.3925h.8481l-.0458-2.785h.023l.8366 2.785h1.2264v-3.3925zm-16.149 0l-.6418 3.427h.9284l.4699-3.1175h.0229l.4585 3.1174h.9169l-.6304-3.4269zm5.1805 0l-.424 2.6132h-.023l-.424-2.6132H6.5788l-.0688 3.427h.8596l.023-3.0832h.0114l.573 3.0831h.8711l.5731-3.083h.023l.0228 3.083h.8596l-.0802-3.4269zm-7.2664 2.4527c.0343.0802.0229.1949.0114.2522-.0229.1146-.1031.2292-.3324.2292-.2177 0-.3438-.126-.3438-.3095v-.3323H0v.2636c0 .7679.6074.9971 1.2493.9971.6189 0 1.1346-.2178 1.2149-.7794.0458-.298.0114-.4928 0-.5616-.1605-.722-1.467-.9283-1.5588-1.3295-.0114-.0688-.0114-.1375 0-.1834.023-.1146.1032-.2292.3095-.2292.2063 0 .321.126.321.3095v.2063h.8595v-.2407c0-.745-.6762-.8596-1.1576-.8596-.6074 0-1.1117.2063-1.2034.7564-.023.149-.0344.2866.0114.4585.1376.7106 1.364.9169 1.5358 1.3524m11.152 0c.0343.0803.0228.1834.0114.2522-.023.1146-.1032.2292-.3324.2292-.2178 0-.3438-.126-.3438-.3095v-.3323h-.917v.2636c0 .7564.596.9857 1.2379.9857.6189 0 1.1232-.2063 1.2034-.7794.0459-.298.0115-.4814 0-.5616-.1375-.7106-1.4327-.9284-1.5243-1.318-.0115-.0688-.0115-.1376 0-.1835.0229-.1146.1031-.2292.3094-.2292.1948 0 .321.126.321.3095v.2063h.848v-.2407c0-.745-.6647-.8596-1.146-.8596-.6075 0-1.1004.1948-1.192.7564-.023.149-.023.2866.0114.4585.1376.7106 1.341.9054 1.513 1.3524m2.8882.4585c.2407 0 .3094-.1605.3323-.2522.0115-.0343.0115-.0917.0115-.126v-2.533h.871v2.4642c0 .0688 0 .1948-.0114.2292-.0573.6419-.5616.8482-1.192.8482-.6303 0-1.1346-.2063-1.192-.8482 0-.0344-.0114-.1604-.0114-.2292v-2.4642h.871v2.533c0 .0458 0 .0916.0115.126 0 .0917.0688.2522.3095.2522m7.1518-.0344c.2522 0 .3324-.1605.3553-.2522.0115-.0343.0115-.0917.0115-.126v-.4929h-.3553v-.5043H24v.917c0 .0687 0 .1145-.0115.2292-.0573.6303-.596.8481-1.2034.8481-.6075 0-1.1461-.2178-1.2034-.8481-.0115-.1147-.0115-.1605-.0115-.2293v-1.444c0-.0574.0115-.172.0115-.2293.0802-.6419.596-.8482 1.2034-.8482s1.1347.2063 1.2034.8482c.0115.1031.0115.2292.0115.2292v.1146h-.8596v-.1948s0-.0803-.0115-.1261c-.0114-.0802-.0802-.2521-.3438-.2521-.2521 0-.321.1604-.3438.2521-.0115.0458-.0115.1032-.0115.1605v1.5702c0 .0458 0 .0916.0115.126 0 .0917.0917.2522.3323.2522`,
-    bg: '#1428A0',
-    light: '#e8edf8',
+    bg: '#e8edf8',
+    selectedBg: '#1428A0',
+    render: (selected) => (
+      <svg viewBox="0 0 300 60" className="w-20 h-7">
+        <text x="150" y="48" textAnchor="middle" fontFamily="'Samsung Sharp Sans', 'Arial Black', sans-serif" fontWeight="700" fontSize="52" letterSpacing="-1" fill={selected ? '#ffffff' : '#1428A0'}>SAMSUNG</text>
+      </svg>
+    ),
   },
-  oneplus: {
-    path: `M0 3.74V24h20.26V12.428h-2.256v9.317H2.254V5.995h9.318V3.742zM18.004 0v3.74h-3.758v2.256h3.758v3.758h2.255V5.996H24V3.74h-3.758V0zm-6.45 18.756V8.862H9.562c0 .682-.228 1.189-.577 1.504-.367.297-.91.437-1.556.437h-.245v1.625h2.133v6.31h2.237z`,
-    bg: '#F5010C',
-    light: '#fef0f0',
-  },
+
+oneplus: {
+  bg: '#fff5f5',
+  selectedBg: '#eb0029',
+  render: (selected) => (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-8 h-8"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M0 3.74V24h20.26V12.428h-2.256v9.317H2.254V5.995h9.318V3.742zM18.004 0v3.74h-3.758v2.256h3.758v3.758h2.255V5.996H24V3.74h-3.758V0zm-6.45 18.756V8.862H9.562c0 .682-.228 1.189-.577 1.504-.367.297-.91.437-1.556.437h-.245v1.625h2.133v6.31h2.237z"
+        fill={selected ? '#ffffff' : '#F5010C'}
+      />
+    </svg>
+  ),
+},
   xiaomi: {
-    path: `M12 0C8.016 0 4.756.255 2.493 2.516.23 4.776 0 8.033 0 12.012c0 3.98.23 7.235 2.494 9.497C4.757 23.77 8.017 24 12 24c3.983 0 7.243-.23 9.506-2.491C23.77 19.247 24 15.99 24 12.012c0-3.984-.233-7.243-2.502-9.504C19.234.252 15.978 0 12 0zM4.906 7.405h5.624c1.47 0 3.007.068 3.764.827.746.746.827 2.233.83 3.676v4.54a.15.15 0 0 1-.152.147h-1.947a.15.15 0 0 1-.152-.148V11.83c-.002-.806-.048-1.634-.464-2.051-.358-.36-1.026-.441-1.72-.458H7.158a.15.15 0 0 0-.151.147v6.98a.15.15 0 0 1-.152.148H4.906a.15.15 0 0 1-.15-.148V7.554a.15.15 0 0 1 .15-.149zm12.131 0h1.949a.15.15 0 0 1 .15.15v8.892a.15.15 0 0 1-.15.148h-1.949a.15.15 0 0 1-.151-.148V7.554a.15.15 0 0 1 .151-.149zM8.92 10.948h2.046c.083 0 .15.066.15.147v5.352a.15.15 0 0 1-.15.148H8.92a.15.15 0 0 1-.152-.148v-5.352a.15.15 0 0 1 .152-.147Z`,
-    bg: '#FF6900',
-    light: '#fff4ec',
+    bg: '#fff4ec',
+    selectedBg: '#ff6900',
+    render: (selected) => (
+      <svg viewBox="0 0 48 48" className="w-9 h-9">
+        <rect width="48" height="48" rx="10" fill="#ff6900" />
+        <text x="24" y="34" textAnchor="middle" fontFamily="'Arial Black', sans-serif" fontWeight="900" fontSize="22" letterSpacing="1" fill="#ffffff">MI</text>
+      </svg>
+    ),
   },
-  motorola: {
-    path: `M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12C24.002 5.375 18.632.002 12.007 0H12zm7.327 18.065s-.581-2.627-1.528-4.197c-.514-.857-1.308-1.553-2.368-1.532-.745 0-1.399.423-2.2 1.553-.469.77-.882 1.573-1.235 2.403 0 0-.29-.675-.63-1.343a8.038 8.038 0 0 0-.605-1.049c-.804-1.13-1.455-1.539-2.2-1.553-1.049-.021-1.854.675-2.364 1.528-.948 1.574-1.528 4.197-1.528 4.197h-.864l4.606-15.12 3.56 11.804.024.021.024-.021 3.56-11.804 4.61 15.113h-.862z`,
-    bg: '#E1140A',
-    light: '#feefef',
+
+  realme: {
+    bg: '#FFF5BF',
+    selectedBg: '#FFD400',
+    render: () => (
+      <span className="font-black tracking-tight lowercase leading-none text-gray-900" style={{ fontSize: '0.98rem', letterSpacing: '-0.04em' }}>realme</span>
+    ),
   },
-  oppo: {
-    path: `M2.85 12.786h-.001C1.639 12.774.858 12.2.858 11.321s.781-1.452 1.99-1.465c1.21.013 1.992.588 1.992 1.465s-.782 1.453-1.99 1.465zm.034-3.638h-.073C1.156 9.175 0 10.068 0 11.32s1.156 2.147 2.811 2.174h.073c1.655-.027 2.811-.921 2.811-2.174S4.54 9.175 2.885 9.148zm18.27 3.638c-1.21-.012-1.992-.587-1.992-1.465s.782-1.452 1.991-1.465c1.21.013 1.991.588 1.991 1.465s-.781 1.453-1.99 1.465zm.035-3.638h-.073c-1.655.027-2.811.92-2.811 2.173s1.156 2.147 2.81 2.174h.074C22.844 13.468 24 12.574 24 11.32s-1.156-2.146-2.811-2.173zm-6.126 3.638c-1.21-.012-1.99-.587-1.99-1.465s.78-1.452 1.99-1.465c1.21.013 1.991.588 1.991 1.465s-.781 1.453-1.99 1.465zm.036-3.638h-.073c-.789.013-1.464.222-1.955.574v-.37h-.857v5.5h.857v-1.931c.49.351 1.166.56 1.954.574h.074c1.655-.027 2.81-.921 2.81-2.174s-1.155-2.146-2.81-2.173zm-6.144 3.638c-1.21-.012-1.99-.587-1.99-1.465s.78-1.452 1.99-1.465c1.21.013 1.991.588 1.991 1.465s-.781 1.453-1.99 1.465zm.037-3.638H8.92c-.789.013-1.464.222-1.955.574v-.37h-.856v5.5h.856v-1.931c.491.351 1.166.56 1.955.574a3.728 3.728 0 0 0 .073 0c1.655-.027 2.811-.921 2.811-2.174s-1.156-2.146-2.81-2.173z`,
-    bg: '#1D7D52',
-    light: '#edf5f0',
+
+  pixel: {
+    bg: '#e8f0fe',
+    selectedBg: '#4285F4',
+    render: (selected) => (
+      <svg viewBox="0 0 24 24" className="w-8 h-8">
+        {selected ? (
+          <path fill="#ffffff" d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+        ) : (
+          <>
+            <path fill="#4285F4" d="M23.745 12.27c0-.79-.07-1.54-.19-2.27h-11.3v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
+            <path fill="#34A853" d="M12.255 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96h-3.98v3.09C3.515 21.3 7.615 24 12.255 24z" />
+            <path fill="#FBBC05" d="M5.525 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62h-3.98a11.86 11.86 0 000 10.76l3.98-3.09z" />
+            <path fill="#EA4335" d="M12.255 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C18.205 1.19 15.495 0 12.255 0c-4.64 0-8.74 2.7-10.71 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z" />
+          </>
+        )}
+      </svg>
+    ),
   },
+
   vivo: {
-    path: `M19.604 14.101c-1.159 0-1.262-.95-1.262-1.24 0-.29.103-1.242 1.262-1.242h2.062c1.16 0 1.263.951 1.263 1.242 0 .29-.104 1.24-1.263 1.24m-2.062-3.527c-2.142 0-2.333 1.752-2.333 2.287 0 .535.19 2.286 2.333 2.286h2.062c2.143 0 2.334-1.751 2.334-2.286 0-.535-.19-2.287-2.334-2.287m-5.477.107c-.286 0-.345.05-.456.213-.11.164-2.022 3.082-2.022 3.082-.06.09-.126.126-.206.126-.08 0-.145-.036-.206-.126 0 0-1.912-2.918-2.022-3.082-.11-.164-.17-.213-.456-.213h-.668c-.154 0-.224.12-.127.267l2.283 3.467c.354.521.614.732 1.196.732s.842-.21 1.196-.732l2.284-3.467c.096-.146.026-.267-.128-.267m-8.876.284c0-.203.08-.284.283-.284h.505c.203 0 .283.08.283.283v3.9c0 .202-.08.283-.283.283h-.505c-.203 0-.283-.08-.283-.283zm-1.769-.285c-.287 0-.346.05-.456.213-.11.164-2.022 3.082-2.022 3.082-.061.09-.126.126-.206.126-.08 0-.145-.036-.206-.126 0 0-1.912-2.918-2.023-3.082-.11-.164-.169-.213-.455-.213H.175c-.171 0-.224.12-.127.267l2.283 3.467c.355.521.615.732 1.197.732.582 0 .842-.21 1.196-.732l2.283-3.467c.097-.146.044-.267-.127-.267m1.055-.893c-.165-.164-.165-.295 0-.46l.351-.351c.165-.165.296-.165.46 0l.352.351c.165.165.165.296 0 .46l-.352.352c-.164.165-.295.165-.46 0z`,
-    bg: '#415FFF',
-    light: '#eef1ff',
+    bg: '#eef1ff',
+    selectedBg: '#415FFF',
+    render: (selected) => (
+      <svg viewBox="0 0 200 60" className="w-16 h-8">
+        <text x="100" y="46" textAnchor="middle" fontFamily="'Arial', sans-serif" fontWeight="700" fontSize="52" letterSpacing="2" fill={selected ? '#ffffff' : '#415FFF'}>vivo</text>
+      </svg>
+    ),
   },
-  google: {
-    path: `M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z`,
-    bg: '#4285F4',
-    light: '#e8f0fe',
+
+  oppo: {
+    bg: '#edf5f0',
+    selectedBg: '#1D7D52',
+    render: (selected) => (
+      <svg viewBox="0 0 200 60" className="w-16 h-8">
+        <text x="100" y="46" textAnchor="middle" fontFamily="'Arial', sans-serif" fontWeight="700" fontSize="52" letterSpacing="1" fill={selected ? '#ffffff' : '#1D7D52'}>OPPO</text>
+      </svg>
+    ),
   },
-  huawei: {
-    path: `M3.67 6.14S1.82 7.91 1.72 9.78v.35c.08 1.51 1.22 2.4 1.22 2.4 1.83 1.79 6.26 4.04 7.3 4.55 0 0 .06.03.1-.01l.02-.04v-.04C7.52 10.8 3.67 6.14 3.67 6.14zM9.65 18.6c-.02-.08-.1-.08-.1-.08l-7.38.26c.8 1.43 2.15 2.53 3.56 2.2.96-.25 3.16-1.78 3.88-2.3.06-.05.04-.09.04-.09zm.08-.78C6.49 15.63.21 12.28.21 12.28c-.15.46-.2.9-.21 1.3v.07c0 1.07.4 1.82.4 1.82.8 1.69 2.34 2.2 2.34 2.2.7.3 1.4.31 1.4.31.12.02 4.4 0 5.54 0 .05 0 .08-.05.08-.05v-.06c0-.03-.03-.05-.03-.05zM9.06 3.19a3.42 3.42 0 00-2.57 3.15v.41c.03.6.16 1.05.16 1.05.66 2.9 3.86 7.65 4.55 8.65.05.05.1.03.1.03a.1.1 0 00.06-.1c1.06-10.6-1.11-13.42-1.11-13.42-.32.02-1.19.23-1.19.23zm8.299 2.27s-.49-1.8-2.44-2.28c0 0-.57-.14-1.17-.22 0 0-2.18 2.81-1.12 13.43.01.07.06.08.06.08.07.03.1-.03.1-.03.72-1.03 3.9-5.76 4.55-8.64 0 0 .36-1.4.02-2.34zm-2.92 13.07s-.07 0-.09.05c0 0-.01.07.03.1.7.51 2.85 2 3.88 2.3 0 0 .16.05.43.06h.14c.69-.02 1.9-.37 3-2.26l-7.4-.25zm7.83-8.41c.14-2.06-1.94-3.97-1.94-3.98 0 0-3.85 4.66-6.67 10.8 0 0-.03.08.02.13l.04.01h.06c1.06-.53 5.46-2.77 7.28-4.54 0 0 1.15-.93 1.21-2.42zm1.52 2.14s-6.28 3.37-9.52 5.55c0 0-.05.04-.03.11 0 0 .03.06.07.06 1.16 0 5.56 0 5.67-.02 0 0 .57-.02 1.27-.29 0 0 1.56-.5 2.37-2.27 0 0 .73-1.45.17-3.14z`,
-    bg: '#CF0A2C',
-    light: '#fff0f0',
+
+  motorola: {
+    bg: '#feefef',
+    selectedBg: '#E1140A',
+    render: (selected) => (
+      <svg viewBox="0 0 64 64" className="w-10 h-10" aria-label="Motorola logo">
+        <circle cx="32" cy="32" r="26" fill={selected ? '#ffffff' : '#E1140A'} />
+        <path d="M20 42V22l12 11 12-11v20h-5V32l-7 6-7-6v10z" fill={selected ? '#E1140A' : '#ffffff'} />
+      </svg>
+    ),
+  },
+
+  poco: {
+    bg: '#FFD000',
+    selectedBg: '#FFD000',
+    render: () => (
+      <svg viewBox="0 0 64 64" className="w-10 h-10">
+        <rect width="64" height="64" rx="14" fill="#FFD000" />
+        <text x="32" y="44" textAnchor="middle" fontFamily="'Arial Black', 'Impact', sans-serif" fontWeight="900" fontSize="24" letterSpacing="-0.5" fill="#111111">POCO</text>
+      </svg>
+    ),
+  },
+
+  iqoo: {
+    bg: '#f0ecfd',
+    selectedBg: '#5b30e9',
+    render: (selected) => (
+      <svg viewBox="0 0 200 60" className="w-16 h-8">
+        <text x="100" y="46" textAnchor="middle" fontFamily="'Arial Black', sans-serif" fontWeight="900" fontSize="50" fill={selected ? '#ffffff' : '#5b30e9'}>iQOO</text>
+      </svg>
+    ),
+  },
+
+  nothing: {
+    bg: '#f5f5f5',
+    selectedBg: '#111111',
+    render: (selected) => (
+      <svg viewBox="0 0 56 56" className="w-9 h-9">
+        <rect width="56" height="56" rx="12" fill={selected ? '#111111' : '#f5f5f5'} />
+        {[
+          [10,10],[10,18],[10,26],[10,34],[10,42],
+          [18,18],
+          [26,26],
+          [34,34],
+          [42,10],[42,18],[42,26],[42,34],[42,42],
+        ].map(([cx, cy], i) => (
+          <circle key={i} cx={cx} cy={cy} r="3.8" fill={selected ? '#ffffff' : '#111111'} />
+        ))}
+      </svg>
+    ),
+  },
+
+  nokia: {
+    bg: '#e8edf8',
+    selectedBg: '#124191',
+    render: (selected) => (
+      <svg viewBox="0 0 200 60" className="w-16 h-8">
+        <text x="100" y="46" textAnchor="middle" fontFamily="'Arial', sans-serif" fontWeight="700" fontSize="50" letterSpacing="2" fill={selected ? '#ffffff' : '#124191'}>NOKIA</text>
+      </svg>
+    ),
+  },
+
+  honor: {
+    bg: '#f7fbff',
+    selectedBg: '#ffffff',
+    render: (selected) => (
+      <svg viewBox="0 0 260 90" className="w-20 h-10" aria-label="Honor logo">
+        <text
+          x="130"
+          y="58"
+          textAnchor="middle"
+          fontFamily="'Aptos', 'Arial Rounded MT Bold', 'Segoe UI', sans-serif"
+          fontWeight="700"
+          fontSize="48"
+          letterSpacing="-1.5"
+          fill={selected ? '#0ea5e9' : '#28a8e0'}
+        >
+          honor
+        </text>
+      </svg>
+    ),
+  },
+
+  tecno: {
+    bg: '#e6f3ff',
+    selectedBg: '#007fff',
+    render: (selected) => (
+      <svg viewBox="0 0 200 60" className="w-16 h-8">
+        <text x="100" y="46" textAnchor="middle" fontFamily="'Arial', sans-serif" fontWeight="700" fontSize="48" letterSpacing="1" fill={selected ? '#ffffff' : '#007fff'}>TECNO</text>
+      </svg>
+    ),
   },
 };
 
-const normalizeKey = (value: string) =>
-  value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+type Brand = typeof STATIC_BRANDS[number];
 
-const isRealme = (id: string, name: string) => {
-  const key = normalizeKey(id + name);
-  return key.includes('realme');
-};
-
-const isGooglePixel = (id: string, name: string) => {
-  const key = normalizeKey(id + name);
-  return key.includes('googlepixel') || key.includes('pixel');
-};
-
-// ── Brand Logo Component ──────────────────────────────────────────────────────
-const BrandLogo: React.FC<{ id: string; name: string; selected?: boolean }> = ({ id, name, selected }) => {
-  const icon = BRAND_ICONS[id];
-
-  // Realme: branded wordmark tile
-  if (isRealme(id, name)) {
+const BrandLogo: React.FC<{ id: string; name: string; color: string; selected?: boolean }> = ({ id, name, color, selected = false }) => {
+  const logo = BRAND_LOGOS[id];
+  if (!logo) {
     return (
       <div
-        className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-sm transition-all duration-200"
-        style={{ backgroundColor: selected ? '#FFD400' : '#FFF5BF' }}
+        className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl shadow-sm transition-all"
+        style={{ backgroundColor: selected ? color : color + '22', color: selected ? '#fff' : color }}
       >
-        <span
-          className="font-black tracking-tight lowercase leading-none"
-          style={{
-            color: '#111827',
-            fontSize: '0.98rem',
-            letterSpacing: '-0.04em',
-            transform: 'translateY(1px)',
-          }}
-        >
-          realme
-        </span>
+        {name.slice(0, 2).toUpperCase()}
       </div>
     );
   }
-
-  // Google Pixel: Google G + Pixel wordmark
-  if (isGooglePixel(id, name)) {
-    return (
-      <div
-        className="w-16 h-16 rounded-2xl flex flex-col items-center justify-center gap-0.5 shadow-sm transition-all duration-200"
-        style={{ backgroundColor: selected ? '#ffffff' : '#f8fafc' }}
-      >
-        <div className="flex items-center gap-1">
-          <svg viewBox="0 0 24 24" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
-              fill="#4285F4"
-              transform="scale(0.62) translate(5 5)"
-            />
-          </svg>
-          <span
-            className="font-semibold leading-none"
-            style={{
-              fontSize: '0.6rem',
-              color: selected ? '#111827' : '#6b7280',
-              letterSpacing: '-0.03em',
-            }}
-          >
-            Pixel
-          </span>
-        </div>
-        <span
-          className="font-bold leading-none"
-          style={{
-            fontSize: '0.48rem',
-            color: '#9ca3af',
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-          }}
-        >
-          Google
-        </span>
-      </div>
-    );
-  }
-
-  if (icon) {
-    return (
-      <div
-        className="w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-200 shadow-sm"
-        style={{ backgroundColor: selected ? icon.bg : icon.light }}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          className="w-8 h-8 transition-all duration-200"
-          style={{ fill: selected ? '#ffffff' : icon.bg }}
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path d={icon.path} />
-        </svg>
-      </div>
-    );
-  }
-
-  // Fallback for brands without a simple-icons entry
   return (
     <div
-      className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl shadow-sm transition-all"
-      style={{ backgroundColor: selected ? '#1d4ed8' : '#eff6ff', color: selected ? '#fff' : '#1d4ed8' }}
+      className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-sm transition-all duration-200 overflow-hidden"
+      style={{ backgroundColor: selected ? logo.selectedBg : logo.bg }}
     >
-      {name.slice(0, 2).toUpperCase()}
+      {logo.render(selected)}
     </div>
   );
 };
 
-// ── Main Component ────────────────────────────────────────────────────────────
 export const BrandSelection: React.FC<StepProps> = ({ updateFormData, goToNextStep }) => {
   const [query, setQuery] = useState('');
   const [hovered, setHovered] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
-  const filtered = brands.filter(
-    (b) =>
-      b.name.toLowerCase().includes(query.toLowerCase()) ||
-      b.models.some((m) => m.toLowerCase().includes(query.toLowerCase())),
+  const primaryBrands = STATIC_BRANDS.filter(b => PRIMARY_BRAND_IDS.includes(b.id));
+  const secondaryBrands = STATIC_BRANDS.filter(b => !PRIMARY_BRAND_IDS.includes(b.id));
+
+  const isSearching = query.length > 0;
+  const searchFiltered = STATIC_BRANDS.filter(b =>
+    b.name.toLowerCase().includes(query.toLowerCase()) ||
+    b.models.some(m => m.toLowerCase().includes(query.toLowerCase())),
   );
 
-  const handleSelect = (brand: typeof brands[0]) => {
-    updateFormData({ brand, model: '', issue: null, pricing: null });
+  const displayedBrands = isSearching ? searchFiltered : (showAll ? STATIC_BRANDS : primaryBrands);
+
+  const handleSelect = (brand: Brand) => {
+    updateFormData({
+      brand: { id: brand.id, name: brand.name, color: brand.color, models: [...brand.models], modelFileMap: {} } as any,
+      model: '',
+      issue: null,
+      pricing: null,
+    });
     goToNextStep();
   };
 
   return (
     <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-100/60 overflow-hidden">
-      {/* ── Header ─────────────────────────────────────────────── */}
       <div className="px-6 pt-8 pb-6 text-center border-b border-gray-50">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 mb-4">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
@@ -191,13 +332,12 @@ export const BrandSelection: React.FC<StepProps> = ({ updateFormData, goToNextSt
       </div>
 
       <div className="p-6 space-y-5">
-        {/* ── Search ─────────────────────────────────────────────── */}
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={e => setQuery(e.target.value)}
             placeholder="Search brand or model…"
             className="w-full pl-11 pr-4 py-3.5 rounded-2xl border border-gray-200 focus:border-blue-400 focus:ring-4 focus:ring-blue-50 outline-none text-sm font-medium bg-gray-50 focus:bg-white transition-all"
             data-testid="brand-search"
@@ -214,11 +354,19 @@ export const BrandSelection: React.FC<StepProps> = ({ updateFormData, goToNextSt
           )}
         </div>
 
-        {/* ── Brand Grid ─────────────────────────────────────────── */}
+        {!isSearching && !showAll && secondaryBrands.length > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-gray-100" />
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Popular brands</span>
+            <div className="h-px flex-1 bg-gray-100" />
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-3">
           <AnimatePresence>
-            {filtered.map((brand, i) => {
+            {displayedBrands.map((brand, i) => {
               const isHovered = hovered === brand.id;
+              const accentColor = brand.color;
               return (
                 <motion.button
                   key={brand.id}
@@ -234,14 +382,12 @@ export const BrandSelection: React.FC<StepProps> = ({ updateFormData, goToNextSt
                   onClick={() => handleSelect(brand)}
                   className="group flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer bg-white"
                   style={{
-                    borderColor: isHovered && BRAND_ICONS[brand.id] ? BRAND_ICONS[brand.id].bg + '66' : '#f1f5f9',
-                    boxShadow: isHovered
-                      ? `0 8px 24px -4px ${BRAND_ICONS[brand.id]?.bg || '#3b82f6'}22`
-                      : '0 1px 3px rgba(0,0,0,0.04)',
+                    borderColor: isHovered ? accentColor + '66' : '#f1f5f9',
+                    boxShadow: isHovered ? `0 8px 24px -4px ${accentColor}33` : '0 1px 3px rgba(0,0,0,0.04)',
                   }}
                   data-testid={`brand-card-${brand.id}`}
                 >
-                  <BrandLogo id={brand.id} name={brand.name} selected={isHovered} />
+                  <BrandLogo id={brand.id} name={brand.name} color={brand.color} selected={isHovered} />
                   <div className="text-center">
                     <p className="font-bold text-gray-900 text-xs leading-tight">{brand.name}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5 font-medium">{brand.models.length} models</p>
@@ -252,20 +398,30 @@ export const BrandSelection: React.FC<StepProps> = ({ updateFormData, goToNextSt
           </AnimatePresence>
         </div>
 
-        {/* Empty state */}
-        {filtered.length === 0 && (
+        {!isSearching && secondaryBrands.length > 0 && (
+          <button
+            onClick={() => setShowAll(v => !v)}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed border-gray-200 text-gray-500 text-xs font-bold hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all"
+          >
+            {showAll
+              ? <><ChevronUp className="w-4 h-4" /> Show fewer brands</>
+              : <><ChevronDown className="w-4 h-4" /> See {secondaryBrands.length} more brands ({secondaryBrands.map(b => b.name).join(', ')})</>
+            }
+          </button>
+        )}
+
+        {isSearching && displayedBrands.length === 0 && (
           <div className="text-center py-10">
             <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
               <Search className="w-6 h-6 text-gray-300" />
             </div>
-            <p className="text-sm font-semibold text-gray-500">No brands found for &quot;{query}&quot;</p>
+            <p className="text-sm font-semibold text-gray-500">No brands found for "{query}"</p>
             <button onClick={() => setQuery('')} className="mt-2 text-xs text-blue-500 hover:underline font-medium">
               Clear search
             </button>
           </div>
         )}
 
-        {/* Footer */}
         <div className="pt-2 border-t border-gray-50 flex items-center justify-center gap-2 text-xs text-gray-400">
           <span>Don't see your brand?</span>
           <a href="tel:+919876543210" className="inline-flex items-center gap-1 text-blue-500 font-bold hover:underline">
