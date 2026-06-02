@@ -51,14 +51,18 @@ const setSelectedLocation = (location: string) => {
 
 const toSlug = (value: string) => value.toLowerCase().replace(/\s+/g, '-');
 
+// e.g. Indiranagar → /mobile-repair-indiranagar
+//      Bengaluru   → /
 const getLocationBasePath = (location: string) => {
   const slug = toSlug(location);
-  return slug === 'bengaluru' ? '/' : `/mobile-repair-${slug}`;
+  return slug === 'bengaluru' ? '/' : `/mobile-service-${slug}`;
 };
 
-const getRepairPath = (location: string) => {
+// e.g. Indiranagar → /mobile-repair-indiranagar/service
+//      Bengaluru   → /service
+const getServicePath = (location: string) => {
   const slug = toSlug(location);
-  return slug === 'bengaluru' ? '/repair' : `/mobile-repair-${slug}/repair`;
+  return slug === 'bengaluru' ? '/service' : `/mobile-service-${slug}/service`;
 };
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
@@ -81,16 +85,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     };
   }, []);
 
-  const homePath = getLocationBasePath(currentLocation);
-  const repairPath = getRepairPath(currentLocation);
+  const homePath    = getLocationBasePath(currentLocation);
+  const servicePath = getServicePath(currentLocation);
 
   const handleLocationClick = (loc: string) => {
-    const path = getLocationBasePath(loc);
-
     setSelectedLocation(loc);
     setMobileMenuOpen(false);
-
-    window.location.href = path;
+    window.location.href = getLocationBasePath(loc);
   };
 
   return (
@@ -188,14 +189,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 Home
               </Link>
               <Link
-                to={repairPath}
+                to={servicePath}
                 className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-gray-300 font-medium hover:bg-white/10 hover:text-white transition-all"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Get a Quote
               </Link>
               <Link
-                to={repairPath}
+                to="/dashboard"
                 className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-gray-300 font-medium hover:bg-white/10 hover:text-white transition-all"
                 onClick={() => setMobileMenuOpen(false)}
               >
@@ -233,6 +234,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <footer className="bg-gray-950 text-gray-400 pt-16 pb-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
+
+            {/* Brand */}
             <div className="lg:col-span-1">
               <div className="flex items-center gap-2 mb-4">
                 <img src={logo} alt="Device360" className="h-9 object-contain brightness-0 invert opacity-90" />
@@ -244,9 +247,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className="flex items-center gap-3">
                 {[
                   { icon: Instagram, href: '#', label: 'Instagram' },
-                  { icon: Facebook, href: '#', label: 'Facebook' },
-                  { icon: Twitter, href: '#', label: 'Twitter' },
-                  { icon: Youtube, href: '#', label: 'YouTube' },
+                  { icon: Facebook,  href: '#', label: 'Facebook' },
+                  { icon: Twitter,   href: '#', label: 'Twitter' },
+                  { icon: Youtube,   href: '#', label: 'YouTube' },
                 ].map(({ icon: Icon, href, label }) => (
                   <a
                     key={label}
@@ -260,6 +263,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
             </div>
 
+            {/* Locations */}
             <div>
               <h4 className="text-white font-semibold text-sm mb-4 flex items-center gap-2">
                 <MapPin className="w-3.5 h-3.5 text-blue-400" />
@@ -271,7 +275,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     key={loc}
                     onClick={() => handleLocationClick(loc)}
                     className={`text-left text-xs transition-colors leading-relaxed ${
-                      currentLocation === loc ? 'text-blue-400 font-semibold' : 'text-gray-500 hover:text-blue-400'
+                      currentLocation === loc
+                        ? 'text-blue-400 font-semibold'
+                        : 'text-gray-500 hover:text-blue-400'
                     }`}
                   >
                     {loc}
@@ -280,6 +286,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
             </div>
 
+            {/* Services */}
             <div>
               <h4 className="text-white font-semibold text-sm mb-4">Our Services</h4>
               <ul className="space-y-2">
@@ -294,7 +301,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   'iPad Repair',
                 ].map((s) => (
                   <li key={s}>
-                    <Link to={repairPath} className="text-xs text-gray-500 hover:text-blue-400 transition-colors">
+                    <Link
+                      to={servicePath}
+                      className="text-xs text-gray-500 hover:text-blue-400 transition-colors"
+                    >
                       {s}
                     </Link>
                   </li>
@@ -302,11 +312,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               </ul>
             </div>
 
+            {/* Contact */}
             <div>
               <h4 className="text-white font-semibold text-sm mb-4">Contact Us</h4>
               <ul className="space-y-3">
                 <li>
-                  <a href="tel:+919876543210" className="flex items-start gap-3 group">
+                  <a href="tel:+919164405840" className="flex items-start gap-3 group">
                     <Phone className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
                     <span className="text-xs text-gray-500 group-hover:text-blue-400 transition-colors">
                       +91 9164405840
