@@ -66,6 +66,18 @@ function extractLocation(slug: string): string {
   return slug.startsWith(LOCATION_PREFIX) ? slug.slice(LOCATION_PREFIX.length) : slug;
 }
 
+const RepairRedirect: React.FC = () => <Navigate to="/service" replace />;
+
+const LocationRepairRedirect: React.FC = () => {
+  const { location } = useParams<{ location: string }>();
+
+  if (!location) {
+    return <Navigate to="/service" replace />;
+  }
+
+  return <Navigate to={`/${LOCATION_PREFIX}${location}`} replace />;
+};
+
 // ─── ServiceStepPage ──────────────────────────────────────────────
 const ServiceStepPage: React.FC<{
   slug:           StepSlug;
@@ -260,6 +272,10 @@ function App() {
             {/* Ad landing — outside Layout */}
             <Route path="/adlanding"                        element={<AdLandingPage />} />
             <Route path={`/${LOCATION_PREFIX}:location/adlanding`} element={<AdLandingPage />} />
+
+            {/* Backward-compatible pricing links */}
+            <Route path="/repair" element={<RepairRedirect />} />
+            <Route path="/:location/repair" element={<LocationRepairRedirect />} />
 
             {/* ── All public routes — inside Layout ── */}
             <Route path="/*" element={<Layout><PublicRoutes /></Layout>} />

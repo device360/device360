@@ -1150,7 +1150,7 @@ export const HomePage: React.FC = () => {
 
   const repairPath = useMemo(() => {
     const slug = toSlug(currentLocation);
-    return slug === 'bengaluru' ? '/repair' : `/${slug}/repair`;
+    return slug === 'bengaluru' ? '/service' : `/mobile-repair-${slug}`;
   }, [currentLocation]);
 
   const whatsappUrl = useMemo(
