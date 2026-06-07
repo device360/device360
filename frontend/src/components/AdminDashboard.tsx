@@ -3,7 +3,7 @@
  *
  * KEY CHANGES:
  *  - CatalogTab: reads/writes brands + issues directly to Firestore (not backend API)
- *  - PricingTab: reads/writes pricing directly to Firestore
+ *  - PricingTab: reads/writes model-level pricing directly to Firestore
  *  - WhatsApp Templates tab: compose & send templated WA messages per booking
  *  - BrandSelection frontend reads same Firestore brands → fully in sync
  *  - No more static BRANDS_LIST / ISSUES_LIST — everything comes from Firestore
@@ -51,8 +51,16 @@ interface FirestoreIssue {
   liveRepair: boolean; description: string; estimatedTime: string; active?: boolean;
 }
 interface FirestorePricing {
-  id: string; brandId: string; issueId: string; name: string;
-  price: number; oldPrice: number|null; time: string;
+  id: string;
+  brandId: string;
+  brandName?: string;
+  modelId?: string;
+  modelName?: string;
+  issueId: string;
+  name: string;
+  price: number;
+  oldPrice: number | null;
+  time: string;
 }
 interface SiteSettings {
   businessName:string; phone:string; whatsapp:string; email:string;
@@ -71,6 +79,20 @@ async function apiFetch(path:string,opts?:RequestInit){
   if(!res.ok) throw new Error(data.error||`HTTP ${res.status}`);
   return data;
 }
+
+const slugifyKey = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const mergeById = <T extends { id: string }>(...lists: T[][]) => {
+  const map = new Map<string, T>();
+  for (const list of lists) {
+    for (const item of list) map.set(item.id, item);
+  }
+  return Array.from(map.values());
+};
 
 // ─── Hook: live Firestore brands ──────────────────────────────────
 function useFirestoreBrands(){
@@ -102,13 +124,61 @@ function useFirestoreIssues(){
 function useFirestorePricing(){
   const [pricing,setPricing]=useState<FirestorePricing[]>([]);
   const [loading,setLoading]=useState(true);
+
   useEffect(()=>{
-    const unsub=onSnapshot(collection(db,'pricing'),snap=>{
-      setPricing(snap.docs.map(d=>({id:d.id,...d.data()} as FirestorePricing)));
-      setLoading(false);
+    let pricingDocs: FirestorePricing[] = [];
+    let serviceDocs: FirestorePricing[] = [];
+    let pricingReady = false;
+    let servicesReady = false;
+
+    const emit = () => {
+      if (pricingReady && servicesReady) {
+        const merged = mergeById(pricingDocs, serviceDocs);
+        merged.sort((a, b) => {
+          const brandA = (a.brandName || a.brandId || '').toLowerCase();
+          const brandB = (b.brandName || b.brandId || '').toLowerCase();
+          if (brandA !== brandB) return brandA.localeCompare(brandB);
+          const modelA = (a.modelName || a.modelId || '').toLowerCase();
+          const modelB = (b.modelName || b.modelId || '').toLowerCase();
+          if (modelA !== modelB) return modelA.localeCompare(modelB);
+          return (a.name || '').localeCompare(b.name || '');
+        });
+        setPricing(merged);
+        setLoading(false);
+      }
+    };
+
+    const mapDoc = (docData: any, id: string): FirestorePricing => ({
+      id,
+      brandId: docData.brandId || '',
+      brandName: docData.brandName,
+      modelId: docData.modelId,
+      modelName: docData.modelName || docData.model || docData.modelLabel,
+      issueId: docData.issueId || '',
+      name: docData.name || docData.issueName || '',
+      price: Number(docData.price || 0),
+      oldPrice: docData.oldPrice === null || docData.oldPrice === undefined || docData.oldPrice === '' ? null : Number(docData.oldPrice),
+      time: docData.time || '45–60 min',
     });
-    return unsub;
+
+    const unsubPricing = onSnapshot(collection(db,'pricing'),snap=>{
+      pricingDocs = snap.docs.map(d=>mapDoc(d.data(), d.id));
+      pricingReady = true;
+      emit();
+    });
+
+    const unsubServices = onSnapshot(collection(db,'services'),snap=>{
+      serviceDocs = snap.docs.map(d=>mapDoc(d.data(), d.id));
+      servicesReady = true;
+      emit();
+    });
+
+    return () => {
+      unsubPricing();
+      unsubServices();
+    };
   },[]);
+
   return {pricing,loading};
 }
 
@@ -773,37 +843,92 @@ const PricingTab: React.FC = () => {
 
   // New pricing form
   const [newBrandId,setNewBrandId]=useState('');
+  const [newModelName,setNewModelName]=useState('');
   const [newIssueId,setNewIssueId]=useState('');
   const [newPrice,setNewPrice]=useState('');
   const [newOldPrice,setNewOldPrice]=useState('');
   const [newTime,setNewTime]=useState('45–60 min');
   const [showAdd,setShowAdd]=useState(false);
 
-  const addPricing=async()=>{
-    if(!newBrandId||!newIssueId||!newPrice){alert('Brand, Issue and Price are required');return;}
-    setSaving(true);
-    const brand=brands.find(b=>b.id===newBrandId);
-    const issue=issues.find(i=>i.id===newIssueId);
-    if(!brand||!issue){alert('Brand or issue not found');setSaving(false);return;}
-    const id=`${newBrandId}__${newIssueId}`;
-    await setDoc(doc(db,'pricing',id),{
-      id,brandId:newBrandId,issueId:newIssueId,
-      name:issue.name,price:Number(newPrice),
-      oldPrice:newOldPrice?Number(newOldPrice):null,time:newTime,
-    });
-    setNewBrandId('');setNewIssueId('');setNewPrice('');setNewOldPrice('');setNewTime('45–60 min');
-    setShowAdd(false);setSaving(false);
+  const selectedBrand = brands.find(b=>b.id===newBrandId);
+  const selectedBrandModels = selectedBrand?.models || [];
+
+  const buildPricingPayload = () => {
+    const brand = brands.find(b=>b.id===newBrandId);
+    const issue = issues.find(i=>i.id===newIssueId);
+    const modelName = newModelName.trim();
+
+    if(!brand||!issue){
+      return null;
+    }
+
+    const payload = {
+      id:`${newBrandId}__${slugifyKey(modelName)}__${newIssueId}`,
+      brandId:newBrandId,
+      brandName:brand.name,
+      modelId:slugifyKey(modelName),
+      modelName,
+      issueId:newIssueId,
+      name:issue.name,
+      price:Number(newPrice),
+      oldPrice:newOldPrice?Number(newOldPrice):null,
+      time:newTime,
+    } as FirestorePricing;
+
+    return payload;
   };
 
-  const savePricing=async(id:string)=>{
+  const addPricing=async()=>{
+    if(!newBrandId||!newModelName.trim()||!newIssueId||!newPrice){
+      alert('Brand, Model, Issue and Price are required');
+      return;
+    }
+
     setSaving(true);
-    await updateDoc(doc(db,'pricing',id),editData as any);
-    setEditId(null);setSaving(false);
+    const payload = buildPricingPayload();
+    if(!payload){
+      alert('Brand or issue not found');
+      setSaving(false);
+      return;
+    }
+
+    await setDoc(doc(db,'pricing',payload.id),payload);
+    await setDoc(doc(db,'services',payload.id),payload);
+
+    setNewBrandId('');
+    setNewModelName('');
+    setNewIssueId('');
+    setNewPrice('');
+    setNewOldPrice('');
+    setNewTime('45–60 min');
+    setShowAdd(false);
+    setSaving(false);
+  };
+
+  const savePricing=async(item:FirestorePricing)=>{
+    setSaving(true);
+    const payload: FirestorePricing = {
+      ...item,
+      ...editData,
+      id: item.id,
+      brandId: (editData.brandId ?? item.brandId) as string,
+      issueId: (editData.issueId ?? item.issueId) as string,
+      name: (editData.name ?? item.name) as string,
+      price: Number(editData.price ?? item.price ?? 0),
+      oldPrice: editData.oldPrice === undefined ? item.oldPrice : (editData.oldPrice === null ? null : Number(editData.oldPrice)),
+      time: (editData.time ?? item.time) as string,
+    };
+
+    await setDoc(doc(db,'pricing',item.id), payload, { merge: true });
+    await setDoc(doc(db,'services',item.id), payload, { merge: true }).catch(()=>{});
+    setEditId(null);
+    setSaving(false);
   };
 
   const deletePricing=async(id:string)=>{
     if(!confirm('Delete this pricing entry?'))return;
     await deleteDoc(doc(db,'pricing',id));
+    await deleteDoc(doc(db,'services',id)).catch(()=>{});
   };
 
   const filtered=filterBrand==='all'?pricing:pricing.filter(p=>p.brandId===filterBrand);
@@ -830,9 +955,27 @@ const PricingTab: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
             <div className="space-y-1 lg:col-span-2">
               <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest">Brand *</label>
-              <select value={newBrandId} onChange={e=>setNewBrandId(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-blue-200 rounded-xl outline-none bg-white">
+              <select
+                value={newBrandId}
+                onChange={e=>{
+                  setNewBrandId(e.target.value);
+                  setNewModelName('');
+                }}
+                className="w-full px-3 py-2.5 text-sm border border-blue-200 rounded-xl outline-none bg-white"
+              >
                 <option value="">Select brand</option>
                 {brands.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+
+              <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mt-3">Model *</label>
+              <select
+                value={newModelName}
+                onChange={e=>setNewModelName(e.target.value)}
+                disabled={!newBrandId}
+                className="w-full px-3 py-2.5 text-sm border border-blue-200 rounded-xl outline-none bg-white disabled:bg-gray-100 disabled:text-gray-400"
+              >
+                <option value="">{newBrandId ? 'Select model' : 'Select brand first'}</option>
+                {selectedBrandModels.map(model=><option key={model} value={model}>{model}</option>)}
               </select>
             </div>
             <div className="space-y-1 lg:col-span-2">
@@ -900,28 +1043,34 @@ const PricingTab: React.FC = () => {
                     <tr key={p.id} className={isEditing?'bg-blue-50':'hover:bg-gray-50 transition-colors'}>
                       {isEditing?(
                         <>
-                          <td className="px-4 py-3 font-bold text-gray-900">{brands.find(b=>b.id===p.brandId)?.name||p.brandId}</td>
-                          <td className="px-4 py-3 text-gray-700">{p.name}</td>
+                          <td className="px-4 py-3 font-bold text-gray-900">{brands.find(b=>b.id===p.brandId)?.name||p.brandName||p.brandId}</td>
+                          <td className="px-4 py-3 text-gray-700">
+                            <div className="font-semibold text-gray-900">{p.modelName||p.modelId||'—'}</div>
+                            <div className="text-[11px] text-gray-400">{p.name}</div>
+                          </td>
                           <td className="px-3 py-2"><input type="number" value={editData.price??p.price} onChange={e=>setEditData(d=>({...d,price:Number(e.target.value)}))} className="w-24 px-2 py-1.5 text-xs border border-blue-300 rounded-lg outline-none bg-white font-bold"/></td>
                           <td className="px-3 py-2"><input type="number" value={editData.oldPrice??p.oldPrice??''} onChange={e=>setEditData(d=>({...d,oldPrice:e.target.value?Number(e.target.value):null}))} className="w-24 px-2 py-1.5 text-xs border border-blue-300 rounded-lg outline-none bg-white"/></td>
                           <td className="px-3 py-2"><input value={editData.time??p.time} onChange={e=>setEditData(d=>({...d,time:e.target.value}))} className="w-24 px-2 py-1.5 text-xs border border-blue-300 rounded-lg outline-none bg-white"/></td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1.5">
-                              <button onClick={()=>savePricing(p.id)} disabled={saving} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 disabled:opacity-50"><Save className="w-3 h-3"/>Save</button>
+                              <button onClick={()=>savePricing(p)} disabled={saving} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 disabled:opacity-50"><Save className="w-3 h-3"/>Save</button>
                               <button onClick={()=>setEditId(null)} className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-500"><X className="w-3.5 h-3.5"/></button>
                             </div>
                           </td>
                         </>
                       ):(
                         <>
-                          <td className="px-4 py-3 font-bold text-gray-900">{brands.find(b=>b.id===p.brandId)?.name||p.brandId}</td>
-                          <td className="px-4 py-3 text-gray-700">{p.name}</td>
+                          <td className="px-4 py-3 font-bold text-gray-900">{brands.find(b=>b.id===p.brandId)?.name||p.brandName||p.brandId}</td>
+                          <td className="px-4 py-3 text-gray-700">
+                            <div className="font-semibold text-gray-900">{p.modelName||p.modelId||'—'}</div>
+                            <div className="text-[11px] text-gray-400">{p.name}</div>
+                          </td>
                           <td className="px-4 py-3 font-black text-emerald-700">₹{p.price?.toLocaleString()}</td>
                           <td className="px-4 py-3 text-gray-400 line-through text-xs">{p.oldPrice?`₹${p.oldPrice.toLocaleString()}`:'—'}</td>
                           <td className="px-4 py-3 text-gray-500 text-xs">{p.time}</td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
-                              <button onClick={()=>{setEditId(p.id);setEditData({price:p.price,oldPrice:p.oldPrice,time:p.time});}} className="p-1.5 rounded-xl hover:bg-blue-50 text-blue-400 hover:text-blue-700 transition-all"><Edit3 className="w-3.5 h-3.5"/></button>
+                              <button onClick={()=>{setEditId(p.id);setEditData({price:p.price,oldPrice:p.oldPrice,time:p.time,brandId:p.brandId,issueId:p.issueId,name:p.name,brandName:p.brandName,modelId:p.modelId,modelName:p.modelName});}} className="p-1.5 rounded-xl hover:bg-blue-50 text-blue-400 hover:text-blue-700 transition-all"><Edit3 className="w-3.5 h-3.5"/></button>
                               <button onClick={()=>deletePricing(p.id)} className="p-1.5 rounded-xl hover:bg-red-50 text-red-300 hover:text-red-600 transition-all"><Trash2 className="w-3.5 h-3.5"/></button>
                             </div>
                           </td>
