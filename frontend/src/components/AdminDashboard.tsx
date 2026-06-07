@@ -2,11 +2,11 @@
  * AdminDashboard.tsx — Fully Firebase-integrated version
  *
  * KEY CHANGES:
- *  - CatalogTab: reads/writes brands + issues directly to Firestore (not backend API)
- *  - PricingTab: reads/writes model-level pricing directly to Firestore (pricing collection only)
- *  - WhatsApp Templates tab: compose & send templated WA messages per booking
- *  - BrandSelection frontend reads same Firestore brands → fully in sync
- *  - No more static BRANDS_LIST / ISSUES_LIST — everything comes from Firestore
+ * - CatalogTab: reads/writes brands + issues directly to Firestore (not backend API)
+ * - PricingTab: reads/writes model-level pricing directly to Firestore (pricing collection only)
+ * - WhatsApp Templates tab: compose & send templated WA messages per booking
+ * - BrandSelection frontend reads same Firestore brands → fully in sync
+ * - No more static BRANDS_LIST / ISSUES_LIST — everything comes from Firestore
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -53,9 +53,9 @@ interface FirestoreIssue {
 interface FirestorePricing {
   id: string;
   brandId: string;
-  brandName?: string;
-  modelId?: string;
-  modelName?: string;
+  brandName?: string | null;
+  modelId?: string | null;
+  modelName?: string | null;
   issueId: string;
   name: string;
   price: number;
@@ -150,9 +150,9 @@ function useFirestorePricing(){
       const mapDoc = (docData: any, id: string): FirestorePricing => ({
         id,
         brandId: docData.brandId || '',
-        brandName: docData.brandName,
-        modelId: docData.modelId,
-        modelName: docData.modelName || docData.model || docData.modelLabel,
+        brandName: docData.brandName || null, // Force null if undefined
+        modelId: docData.modelId || null,     // Force null if undefined
+        modelName: docData.modelName || docData.model || docData.modelLabel || null, // Force null if undefined
         issueId: docData.issueId || '',
         name: docData.name || docData.issueName || '',
         price: Number(docData.price || 0),
@@ -912,7 +912,7 @@ const PricingTab: React.FC = () => {
 
   const savePricing=async(item:FirestorePricing)=>{
     setSaving(true);
-    const payload: FirestorePricing = {
+    const payload: any = {
       ...item,
       ...editData,
       id: item.id,
@@ -924,9 +924,23 @@ const PricingTab: React.FC = () => {
       time: (editData.time ?? item.time) as string,
     };
 
-    await setDoc(doc(db,'pricing',item.id), payload, { merge: true });
-    setEditId(null);
-    setSaving(false);
+    // CRITICAL: Firestore hates undefined. Strip them before sending.
+    Object.keys(payload).forEach(key => {
+      if (payload[key] === undefined) {
+        delete payload[key];
+      }
+    });
+
+    try {
+      await setDoc(doc(db,'pricing',item.id), payload, { merge: true });
+      setEditId(null);
+      await refreshPricing();
+    } catch(err) {
+      console.error('Save failed:', err);
+      alert('Failed to save pricing.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const deletePricing=async(id:string)=>{
