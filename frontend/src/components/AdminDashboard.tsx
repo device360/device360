@@ -3,7 +3,7 @@
  *
  * KEY CHANGES:
  *  - CatalogTab: reads/writes brands + issues directly to Firestore (not backend API)
- *  - PricingTab: reads/writes model-level pricing directly to Firestore
+ *  - PricingTab: reads/writes model-level pricing directly to Firestore (pricing collection only)
  *  - WhatsApp Templates tab: compose & send templated WA messages per booking
  *  - BrandSelection frontend reads same Firestore brands → fully in sync
  *  - No more static BRANDS_LIST / ISSUES_LIST — everything comes from Firestore
@@ -86,23 +86,23 @@ const slugifyKey = (value: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
-const mergeById = <T extends { id: string }>(...lists: T[][]) => {
-  const map = new Map<string, T>();
-  for (const list of lists) {
-    for (const item of list) map.set(item.id, item);
-  }
-  return Array.from(map.values());
-};
 
 // ─── Hook: live Firestore brands ──────────────────────────────────
 function useFirestoreBrands(){
   const [brands,setBrands]=useState<FirestoreBrand[]>([]);
   const [loading,setLoading]=useState(true);
   useEffect(()=>{
-    const unsub=onSnapshot(collection(db,'brands'),snap=>{
-      setBrands(snap.docs.map(d=>({id:d.id,...d.data()} as FirestoreBrand)));
-      setLoading(false);
-    });
+    const unsub=onSnapshot(
+      collection(db,'brands'),
+      snap=>{
+        setBrands(snap.docs.map(d=>({id:d.id,...d.data()} as FirestoreBrand)));
+        setLoading(false);
+      },
+      err=>{
+        console.error('brands listener failed', err);
+        setLoading(false);
+      }
+    );
     return unsub;
   },[]);
   return {brands,loading};
@@ -112,10 +112,17 @@ function useFirestoreIssues(){
   const [issues,setIssues]=useState<FirestoreIssue[]>([]);
   const [loading,setLoading]=useState(true);
   useEffect(()=>{
-    const unsub=onSnapshot(collection(db,'issues'),snap=>{
-      setIssues(snap.docs.map(d=>({id:d.id,...d.data()} as FirestoreIssue)));
-      setLoading(false);
-    });
+    const unsub=onSnapshot(
+      collection(db,'issues'),
+      snap=>{
+        setIssues(snap.docs.map(d=>({id:d.id,...d.data()} as FirestoreIssue)));
+        setLoading(false);
+      },
+      err=>{
+        console.error('issues listener failed', err);
+        setLoading(false);
+      }
+    );
     return unsub;
   },[]);
   return {issues,loading};
@@ -126,28 +133,6 @@ function useFirestorePricing(){
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
-    let pricingDocs: FirestorePricing[] = [];
-    let serviceDocs: FirestorePricing[] = [];
-    let pricingReady = false;
-    let servicesReady = false;
-
-    const emit = () => {
-      if (pricingReady && servicesReady) {
-        const merged = mergeById(pricingDocs, serviceDocs);
-        merged.sort((a, b) => {
-          const brandA = (a.brandName || a.brandId || '').toLowerCase();
-          const brandB = (b.brandName || b.brandId || '').toLowerCase();
-          if (brandA !== brandB) return brandA.localeCompare(brandB);
-          const modelA = (a.modelName || a.modelId || '').toLowerCase();
-          const modelB = (b.modelName || b.modelId || '').toLowerCase();
-          if (modelA !== modelB) return modelA.localeCompare(modelB);
-          return (a.name || '').localeCompare(b.name || '');
-        });
-        setPricing(merged);
-        setLoading(false);
-      }
-    };
-
     const mapDoc = (docData: any, id: string): FirestorePricing => ({
       id,
       brandId: docData.brandId || '',
@@ -161,22 +146,29 @@ function useFirestorePricing(){
       time: docData.time || '45–60 min',
     });
 
-    const unsubPricing = onSnapshot(collection(db,'pricing'),snap=>{
-      pricingDocs = snap.docs.map(d=>mapDoc(d.data(), d.id));
-      pricingReady = true;
-      emit();
-    });
+    const unsub=onSnapshot(
+      collection(db,'pricing'),
+      snap=>{
+        const pricingDocs = snap.docs.map(d=>mapDoc(d.data(), d.id));
+        pricingDocs.sort((a, b) => {
+          const brandA = (a.brandName || a.brandId || '').toLowerCase();
+          const brandB = (b.brandName || b.brandId || '').toLowerCase();
+          if (brandA !== brandB) return brandA.localeCompare(brandB);
+          const modelA = (a.modelName || a.modelId || '').toLowerCase();
+          const modelB = (b.modelName || b.modelId || '').toLowerCase();
+          if (modelA !== modelB) return modelA.localeCompare(modelB);
+          return (a.name || '').localeCompare(b.name || '');
+        });
+        setPricing(pricingDocs);
+        setLoading(false);
+      },
+      err=>{
+        console.error('pricing listener failed', err);
+        setLoading(false);
+      }
+    );
 
-    const unsubServices = onSnapshot(collection(db,'services'),snap=>{
-      serviceDocs = snap.docs.map(d=>mapDoc(d.data(), d.id));
-      servicesReady = true;
-      emit();
-    });
-
-    return () => {
-      unsubPricing();
-      unsubServices();
-    };
+    return () => unsub();
   },[]);
 
   return {pricing,loading};
@@ -893,7 +885,6 @@ const PricingTab: React.FC = () => {
     }
 
     await setDoc(doc(db,'pricing',payload.id),payload);
-    await setDoc(doc(db,'services',payload.id),payload);
 
     setNewBrandId('');
     setNewModelName('');
@@ -920,7 +911,6 @@ const PricingTab: React.FC = () => {
     };
 
     await setDoc(doc(db,'pricing',item.id), payload, { merge: true });
-    await setDoc(doc(db,'services',item.id), payload, { merge: true }).catch(()=>{});
     setEditId(null);
     setSaving(false);
   };
@@ -928,7 +918,6 @@ const PricingTab: React.FC = () => {
   const deletePricing=async(id:string)=>{
     if(!confirm('Delete this pricing entry?'))return;
     await deleteDoc(doc(db,'pricing',id));
-    await deleteDoc(doc(db,'services',id)).catch(()=>{});
   };
 
   const filtered=filterBrand==='all'?pricing:pricing.filter(p=>p.brandId===filterBrand);
