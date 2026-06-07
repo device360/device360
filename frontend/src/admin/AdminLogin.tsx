@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Shield, TrendingUp, ChevronRight, ArrowLeft } from 'lucide-react';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebaseClient';
 
 type Role = 'admin' | 'technician' | 'marketing';
 
@@ -12,8 +14,7 @@ interface RoleConfig {
   bg: string;
   border: string;
   btnColor: string;
-  username: string;
-  password: string;
+  defaultEmail: string; // Changed from username to provide a helpful hint
   storageKey: string;
   redirectTo: string;
 }
@@ -27,8 +28,7 @@ const ROLES: Record<Role, RoleConfig> = {
     bg: 'bg-blue-50',
     border: 'border-blue-200',
     btnColor: 'bg-blue-600 hover:bg-blue-700',
-    username: 'Admin',
-    password: 'Admin@device360',
+    defaultEmail: 'admin@device360.in',
     storageKey: 'adminAuth',
     redirectTo: '/admin',
   },
@@ -40,8 +40,7 @@ const ROLES: Record<Role, RoleConfig> = {
     bg: 'bg-orange-50',
     border: 'border-orange-200',
     btnColor: 'bg-orange-500 hover:bg-orange-600',
-    username: 'Technician',
-    password: 'Tech@device360',
+    defaultEmail: 'tech@device360.in',
     storageKey: 'techAuth',
     redirectTo: '/technician',
   },
@@ -53,8 +52,7 @@ const ROLES: Record<Role, RoleConfig> = {
     bg: 'bg-green-50',
     border: 'border-green-200',
     btnColor: 'bg-green-600 hover:bg-green-700',
-    username: 'Marketing',
-    password: 'Mkt@device360',
+    defaultEmail: 'mkt@device360.in',
     storageKey: 'mktAuth',
     redirectTo: '/marketing',
   },
@@ -64,7 +62,7 @@ export const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [step, setStep] = useState<'role' | 'credentials'>('role');
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -73,7 +71,7 @@ export const AdminLogin: React.FC = () => {
 
   const resetForm = () => {
     setError('');
-    setUsername('');
+    setEmail('');
     setPassword('');
     setLoading(false);
   };
@@ -93,6 +91,7 @@ export const AdminLogin: React.FC = () => {
 
   const handleRoleSelect = (r: Role) => {
     setSelectedRole(r);
+    setEmail(ROLES[r].defaultEmail); // Pre-fill the email hint
     setStep('credentials');
     setError('');
   };
@@ -105,13 +104,22 @@ export const AdminLogin: React.FC = () => {
     setLoading(true);
 
     try {
-      if (username !== role.username || password !== role.password) {
-        setError('Invalid username or password.');
-        return;
-      }
+      // 1. Actually authenticate with Firebase
+      await signInWithEmailAndPassword(auth, email, password);
 
+      // 2. Set the local storage flag for your ProtectedRoute
       localStorage.setItem(role.storageKey, 'true');
+      
+      // 3. Navigate to the dashboard
       navigate(role.redirectTo, { replace: true });
+    } catch (err: any) {
+      console.error('Login error:', err);
+      // Simplify Firebase error messages for the user
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError('Invalid email or password.');
+      } else {
+        setError(err.message || 'Failed to log in.');
+      }
     } finally {
       setLoading(false);
     }
@@ -182,15 +190,15 @@ export const AdminLogin: React.FC = () => {
 
               <form onSubmit={handleCredentials} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Username</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
                   <input
-                    type="text"
-                    value={username}
+                    type="email"
+                    value={email}
                     onChange={(e) => {
                       setError('');
-                      setUsername(e.target.value);
+                      setEmail(e.target.value);
                     }}
-                    placeholder={`${role.label} username`}
+                    placeholder="name@device360.in"
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
                     autoComplete="username"
                     required
@@ -206,7 +214,7 @@ export const AdminLogin: React.FC = () => {
                       setError('');
                       setPassword(e.target.value);
                     }}
-                    placeholder="Enter password"
+                    placeholder="Enter your password"
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
                     autoComplete="current-password"
                     required
@@ -224,7 +232,7 @@ export const AdminLogin: React.FC = () => {
                   disabled={loading}
                   className={`w-full py-3 rounded-xl ${role.btnColor} text-white font-bold transition disabled:opacity-60 text-sm flex items-center justify-center gap-2`}
                 >
-                  {loading ? 'Logging in…' : 'Login Now'}
+                  {loading ? 'Authenticating…' : 'Secure Login'}
                 </button>
               </form>
             </div>
@@ -232,7 +240,7 @@ export const AdminLogin: React.FC = () => {
         </div>
 
         <p className="text-center text-gray-500 text-xs mt-6">
-          Login uses username and password only for now.
+          Secured by Firebase Authentication
         </p>
       </div>
     </div>
