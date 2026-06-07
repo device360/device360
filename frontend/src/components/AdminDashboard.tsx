@@ -1,12 +1,5 @@
 /**
  * AdminDashboard.tsx — Fully Firebase-integrated version
- *
- * KEY CHANGES:
- * - CatalogTab: reads/writes brands + issues directly to Firestore (not backend API)
- * - PricingTab: reads/writes model-level pricing directly to Firestore (pricing collection only)
- * - WhatsApp Templates tab: compose & send templated WA messages per booking
- * - BrandSelection frontend reads same Firestore brands → fully in sync
- * - No more static BRANDS_LIST / ISSUES_LIST — everything comes from Firestore
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -28,6 +21,30 @@ import type { Lead } from '../types';
 import { useNavigate } from 'react-router-dom';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+// ─── UTILITIES ───────────────────────────────────────────────────
+// CRITICAL FIX: Firestore completely rejects undefined values. 
+// This utility forces any undefined fields to null before saving.
+const sanitizeForFirestore = (obj: any): any => {
+  const sanitized: any = {};
+  for (const key in obj) {
+    sanitized[key] = obj[key] === undefined ? null : obj[key];
+  }
+  return sanitized;
+};
+
+const slugifyKey = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+async function apiFetch(path:string,opts?:RequestInit){
+  const res=await fetch(`${BACKEND}${path}`,{headers:{'Content-Type':'application/json'},...opts});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error||`HTTP ${res.status}`);
+  return data;
+}
 
 // ─── Types ───────────────────────────────────────────────────────
 const STATUS_OPTIONS = ['pending','confirmed','picked_up','in_progress','completed','cancelled'] as const;
@@ -53,9 +70,9 @@ interface FirestoreIssue {
 interface FirestorePricing {
   id: string;
   brandId: string;
-  brandName?: string | null;
-  modelId?: string | null;
-  modelName?: string | null;
+  brandName: string | null;
+  modelId: string | null;
+  modelName: string | null;
   issueId: string;
   name: string;
   price: number;
@@ -72,19 +89,6 @@ interface SiteSettings {
 
 type AdminTab = 'bookings'|'catalog'|'pricing'|'whatsapp'|'analytics'|'settings';
 const BAR_COLORS = ['from-blue-500 to-blue-400','from-violet-500 to-violet-400','from-emerald-500 to-emerald-400','from-amber-500 to-amber-400','from-pink-500 to-pink-400'];
-
-async function apiFetch(path:string,opts?:RequestInit){
-  const res=await fetch(`${BACKEND}${path}`,{headers:{'Content-Type':'application/json'},...opts});
-  const data=await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(data.error||`HTTP ${res.status}`);
-  return data;
-}
-
-const slugifyKey = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 
 
 // ─── Hook: live Firestore brands ──────────────────────────────────
@@ -150,11 +154,12 @@ function useFirestorePricing(){
       const mapDoc = (docData: any, id: string): FirestorePricing => ({
         id,
         brandId: docData.brandId || '',
-        brandName: docData.brandName || null, // Force null if undefined
-        modelId: docData.modelId || null,     // Force null if undefined
-        modelName: docData.modelName || docData.model || docData.modelLabel || null, // Force null if undefined
+        brandName: docData.brandName ?? null,
+        // Fallback to legacy fields shown in your screenshot (modelSlug, model)
+        modelId: docData.modelId ?? docData.modelSlug ?? null,     
+        modelName: docData.modelName ?? docData.model ?? docData.modelLabel ?? null, 
         issueId: docData.issueId || '',
-        name: docData.name || docData.issueName || '',
+        name: docData.name ?? docData.issueName ?? '',
         price: Number(docData.price || 0),
         oldPrice: docData.oldPrice === null || docData.oldPrice === undefined || docData.oldPrice === '' ? null : Number(docData.oldPrice),
         time: docData.time || '45–60 min',
@@ -535,7 +540,7 @@ Questions? Reply here or call us! 🙏`);
 };
 
 // ═══════════════════════════════════════════════════════════════════
-// CATALOG TAB — Brands, Models, Issues → writes directly to Firestore
+// CATALOG TAB 
 // ═══════════════════════════════════════════════════════════════════
 const CatalogTab: React.FC = () => {
   const {brands,loading:bLoading}=useFirestoreBrands();
@@ -561,14 +566,14 @@ const CatalogTab: React.FC = () => {
     if(!newBrandName.trim()){alert('Enter a brand name');return;}
     setSaving(true);
     const id=newBrandName.toLowerCase().replace(/[^a-z0-9]+/g,'-');
-    await setDoc(doc(db,'brands',id),{
+    await setDoc(doc(db,'brands',id), sanitizeForFirestore({
       id,name:newBrandName.trim(),color:newBrandColor,
       models:[],modelFileMap:{},active:true,sortOrder:brands.length,
-    });
+    }));
     setNewBrandName('');setSaving(false);
   };
   const toggleBrand=async(brand:FirestoreBrand)=>{
-    await updateDoc(doc(db,'brands',brand.id),{active:!(brand.active!==false)});
+    await updateDoc(doc(db,'brands',brand.id), sanitizeForFirestore({active:!(brand.active!==false)}));
   };
   const deleteBrand=async(brand:FirestoreBrand)=>{
     if(!confirm(`Delete brand "${brand.name}"? This won't delete its pricing.`))return;
@@ -581,13 +586,13 @@ const CatalogTab: React.FC = () => {
     if(!activeBrand||!newModel.trim())return;
     setSaving(true);
     const updated={...activeBrand,models:[...activeBrand.models,newModel.trim()]};
-    await updateDoc(doc(db,'brands',activeBrand.id),{models:updated.models});
+    await updateDoc(doc(db,'brands',activeBrand.id), sanitizeForFirestore({models:updated.models}));
     setActiveBrand(updated);setNewModel('');setSaving(false);
   };
   const removeModel=async(m:string)=>{
     if(!activeBrand)return;
     const updated={...activeBrand,models:activeBrand.models.filter(x=>x!==m)};
-    await updateDoc(doc(db,'brands',activeBrand.id),{models:updated.models});
+    await updateDoc(doc(db,'brands',activeBrand.id), sanitizeForFirestore({models:updated.models}));
     setActiveBrand(updated);
   };
 
@@ -596,15 +601,15 @@ const CatalogTab: React.FC = () => {
     if(!newIssueName.trim()){alert('Enter an issue name');return;}
     setSaving(true);
     const id=newIssueName.toLowerCase().replace(/[^a-z0-9]+/g,'_');
-    await setDoc(doc(db,'issues',id),{
+    await setDoc(doc(db,'issues',id), sanitizeForFirestore({
       id,name:newIssueName.trim(),description:newIssueDesc,
       icon:newIssueIcon,category:newIssueCat,liveRepair:newIssueCat==='live',
       estimatedTime:newIssueTime,active:true,
-    });
+    }));
     setNewIssueName('');setNewIssueDesc('');setSaving(false);
   };
   const toggleIssue=async(issue:FirestoreIssue)=>{
-    await updateDoc(doc(db,'issues',issue.id),{active:!(issue.active!==false)});
+    await updateDoc(doc(db,'issues',issue.id), sanitizeForFirestore({active:!(issue.active!==false)}));
   };
   const deleteIssue=async(issue:FirestoreIssue)=>{
     if(!confirm(`Delete issue "${issue.name}"?`))return;
@@ -613,7 +618,6 @@ const CatalogTab: React.FC = () => {
 
   const loading=bLoading||iLoading;
 
-  // Sync activeBrand with live data
   useEffect(()=>{
     if(activeBrand){
       const fresh=brands.find(b=>b.id===activeBrand.id);
@@ -646,7 +650,6 @@ const CatalogTab: React.FC = () => {
       {/* ── BRANDS SECTION ── */}
       {section==='brands'&&(
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          {/* Brand list */}
           <div className="lg:col-span-2 space-y-3">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
@@ -679,7 +682,6 @@ const CatalogTab: React.FC = () => {
                 ))}
                 {brands.length===0&&<p className="text-center text-xs text-gray-400 py-8">No brands yet. Add one below.</p>}
               </div>
-              {/* Add brand */}
               <div className="px-4 py-3 border-t border-gray-100 space-y-2">
                 <div className="flex gap-2">
                   <input type="text" placeholder="New brand name…" value={newBrandName} onChange={e=>setNewBrandName(e.target.value)}
@@ -696,7 +698,6 @@ const CatalogTab: React.FC = () => {
             </div>
           </div>
 
-          {/* Model manager */}
           <div className="lg:col-span-3">
             {activeBrand?(
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-full">
@@ -716,7 +717,6 @@ const CatalogTab: React.FC = () => {
                     {activeBrand.active!==false?'Visible on site':'Hidden'}
                   </span>
                 </div>
-                {/* Models grid */}
                 <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto">
                   {activeBrand.models.map(model=>(
                     <div key={model} className="flex items-center justify-between gap-1 px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 group hover:border-red-200 transition-all">
@@ -731,7 +731,6 @@ const CatalogTab: React.FC = () => {
                     <p className="col-span-3 text-xs text-gray-400 text-center py-6">No models yet — add one below</p>
                   )}
                 </div>
-                {/* Add model */}
                 <div className="px-4 pb-4 pt-2 border-t border-gray-100">
                   <div className="flex gap-2">
                     <input type="text" placeholder={`Add ${activeBrand.name} model (e.g. Galaxy S25 Ultra)…`}
@@ -761,7 +760,6 @@ const CatalogTab: React.FC = () => {
       {/* ── ISSUES SECTION ── */}
       {section==='issues'&&(
         <div className="space-y-4">
-          {/* Add issue form */}
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
             <h3 className="font-black text-blue-900 text-sm mb-4">Add New Issue Type</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
@@ -801,7 +799,6 @@ const CatalogTab: React.FC = () => {
             </button>
           </div>
 
-          {/* Issues table */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
               <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Issue Types ({issues.length})</p>
@@ -836,7 +833,7 @@ const CatalogTab: React.FC = () => {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-// PRICING TAB — reads/writes pricing directly to Firestore
+// PRICING TAB
 // ═══════════════════════════════════════════════════════════════════
 const PricingTab: React.FC = () => {
   const {brands}=useFirestoreBrands();
@@ -847,7 +844,6 @@ const PricingTab: React.FC = () => {
   const [editId,setEditId]=useState<string|null>(null);
   const [editData,setEditData]=useState<Partial<FirestorePricing>>({});
 
-  // New pricing form
   const [newBrandId,setNewBrandId]=useState('');
   const [newModelName,setNewModelName]=useState('');
   const [newIssueId,setNewIssueId]=useState('');
@@ -859,31 +855,6 @@ const PricingTab: React.FC = () => {
   const selectedBrand = brands.find(b=>b.id===newBrandId);
   const selectedBrandModels = selectedBrand?.models || [];
 
-  const buildPricingPayload = () => {
-    const brand = brands.find(b=>b.id===newBrandId);
-    const issue = issues.find(i=>i.id===newIssueId);
-    const modelName = newModelName.trim();
-
-    if(!brand||!issue){
-      return null;
-    }
-
-    const payload = {
-      id:`${newBrandId}__${slugifyKey(modelName)}__${newIssueId}`,
-      brandId:newBrandId,
-      brandName:brand.name,
-      modelId:slugifyKey(modelName),
-      modelName,
-      issueId:newIssueId,
-      name:issue.name,
-      price:Number(newPrice),
-      oldPrice:newOldPrice?Number(newOldPrice):null,
-      time:newTime,
-    } as FirestorePricing;
-
-    return payload;
-  };
-
   const addPricing=async()=>{
     if(!newBrandId||!newModelName.trim()||!newIssueId||!newPrice){
       alert('Brand, Model, Issue and Price are required');
@@ -891,14 +862,31 @@ const PricingTab: React.FC = () => {
     }
 
     setSaving(true);
-    const payload = buildPricingPayload();
-    if(!payload){
+    const brand = brands.find(b=>b.id===newBrandId);
+    const issue = issues.find(i=>i.id===newIssueId);
+
+    if(!brand||!issue){
       alert('Brand or issue not found');
       setSaving(false);
       return;
     }
 
-    await setDoc(doc(db,'pricing',payload.id),payload);
+    const payloadId = `${newBrandId}__${slugifyKey(newModelName)}__${newIssueId}`;
+    
+    const payload = {
+      id: payloadId,
+      brandId: newBrandId,
+      brandName: brand.name || null,
+      modelId: slugifyKey(newModelName),
+      modelName: newModelName.trim(),
+      issueId: newIssueId,
+      name: issue.name || null,
+      price: Number(newPrice),
+      oldPrice: newOldPrice ? Number(newOldPrice) : null,
+      time: newTime || '45–60 min',
+    };
+
+    await setDoc(doc(db,'pricing',payload.id), sanitizeForFirestore(payload));
 
     setNewBrandId('');
     setNewModelName('');
@@ -908,36 +896,35 @@ const PricingTab: React.FC = () => {
     setNewTime('45–60 min');
     setShowAdd(false);
     setSaving(false);
+    await refreshPricing();
   };
 
   const savePricing=async(item:FirestorePricing)=>{
     setSaving(true);
-    const payload: any = {
-      ...item,
-      ...editData,
+    
+    // Explicitly construct object to prevent state bleed
+    const rawPayload: Record<string, any> = {
       id: item.id,
-      brandId: (editData.brandId ?? item.brandId) as string,
-      issueId: (editData.issueId ?? item.issueId) as string,
-      name: (editData.name ?? item.name) as string,
+      brandId: editData.brandId ?? item.brandId ?? '',
+      brandName: editData.brandName ?? item.brandName ?? null,
+      modelId: editData.modelId ?? item.modelId ?? null,
+      modelName: editData.modelName ?? item.modelName ?? null,
+      issueId: editData.issueId ?? item.issueId ?? '',
+      name: editData.name ?? item.name ?? '',
       price: Number(editData.price ?? item.price ?? 0),
-      oldPrice: editData.oldPrice === undefined ? item.oldPrice : (editData.oldPrice === null ? null : Number(editData.oldPrice)),
-      time: (editData.time ?? item.time) as string,
+      oldPrice: editData.oldPrice !== undefined ? editData.oldPrice : (item.oldPrice ?? null),
+      time: editData.time ?? item.time ?? '45–60 min',
     };
 
-    // CRITICAL: Firestore hates undefined. Strip them before sending.
-    Object.keys(payload).forEach(key => {
-      if (payload[key] === undefined) {
-        delete payload[key];
-      }
-    });
-
     try {
-      await setDoc(doc(db,'pricing',item.id), payload, { merge: true });
+      // Pass it through our sanitizer to ensure 0 undefined properties exist
+      await setDoc(doc(db,'pricing',item.id), sanitizeForFirestore(rawPayload), { merge: true });
       setEditId(null);
+      setEditData({});
       await refreshPricing();
     } catch(err) {
       console.error('Save failed:', err);
-      alert('Failed to save pricing.');
+      alert('Failed to save pricing: ' + (err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -971,7 +958,6 @@ const PricingTab: React.FC = () => {
         </button>
       </div>
 
-      {/* Add form */}
       {showAdd&&(
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-5">
           <div className="flex items-center justify-between mb-4">
@@ -1032,7 +1018,6 @@ const PricingTab: React.FC = () => {
         </div>
       )}
 
-      {/* Brand filter */}
       <div className="flex flex-wrap gap-2 mb-4">
         <button onClick={()=>setFilterBrand('all')} className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${filterBrand==='all'?'bg-blue-600 text-white':'bg-white border border-gray-200 text-gray-600 hover:border-blue-300'}`}>
           All ({pricing.length})
@@ -1048,7 +1033,6 @@ const PricingTab: React.FC = () => {
         })}
       </div>
 
-      {/* Pricing table */}
       {loading?(
         <div className="flex items-center justify-center py-20"><div className="w-7 h-7 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"/></div>
       ):(
@@ -1080,7 +1064,7 @@ const PricingTab: React.FC = () => {
                           <td className="px-4 py-3">
                             <div className="flex gap-1.5">
                               <button onClick={()=>savePricing(p)} disabled={saving} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 disabled:opacity-50"><Save className="w-3 h-3"/>Save</button>
-                              <button onClick={()=>setEditId(null)} className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-500"><X className="w-3.5 h-3.5"/></button>
+                              <button onClick={()=>{setEditId(null);setEditData({});}} className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-500"><X className="w-3.5 h-3.5"/></button>
                             </div>
                           </td>
                         </>
@@ -1096,7 +1080,20 @@ const PricingTab: React.FC = () => {
                           <td className="px-4 py-3 text-gray-500 text-xs">{p.time}</td>
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
-                              <button onClick={()=>{setEditId(p.id);setEditData({price:p.price,oldPrice:p.oldPrice,time:p.time,brandId:p.brandId,issueId:p.issueId,name:p.name,brandName:p.brandName,modelId:p.modelId,modelName:p.modelName});}} className="p-1.5 rounded-xl hover:bg-blue-50 text-blue-400 hover:text-blue-700 transition-all"><Edit3 className="w-3.5 h-3.5"/></button>
+                              <button onClick={()=>{
+                                setEditId(p.id);
+                                setEditData({
+                                  price: p.price,
+                                  oldPrice: p.oldPrice,
+                                  time: p.time,
+                                  brandId: p.brandId,
+                                  issueId: p.issueId,
+                                  name: p.name,
+                                  brandName: p.brandName,
+                                  modelId: p.modelId,
+                                  modelName: p.modelName
+                                });
+                              }} className="p-1.5 rounded-xl hover:bg-blue-50 text-blue-400 hover:text-blue-700 transition-all"><Edit3 className="w-3.5 h-3.5"/></button>
                               <button onClick={()=>deletePricing(p.id)} className="p-1.5 rounded-xl hover:bg-red-50 text-red-300 hover:text-red-600 transition-all"><Trash2 className="w-3.5 h-3.5"/></button>
                             </div>
                           </td>
@@ -1216,7 +1213,6 @@ const WhatsAppTab: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        {/* Lead picker */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
@@ -1248,9 +1244,7 @@ const WhatsAppTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Template + preview */}
         <div className="lg:col-span-3 space-y-4">
-          {/* Template selector */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
             <p className="text-xs font-black text-gray-700 uppercase tracking-widest mb-3">Message Template</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1263,7 +1257,6 @@ const WhatsAppTab: React.FC = () => {
             </div>
           </div>
 
-          {/* Custom message */}
           {selectedTemplate==='custom'&&(
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
               <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Your Message</label>
@@ -1272,7 +1265,6 @@ const WhatsAppTab: React.FC = () => {
             </div>
           )}
 
-          {/* Preview */}
           {selectedLead&&builtMsg&&(
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
