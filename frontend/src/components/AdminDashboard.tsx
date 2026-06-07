@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import {
   collection, getDocs, doc, setDoc, updateDoc, deleteDoc, addDoc,
-  onSnapshot, query, orderBy,
+  query, orderBy,
 } from 'firebase/firestore';
 import { db } from '../firebaseClient';
 import type { Lead } from '../types';
@@ -88,91 +88,105 @@ const slugifyKey = (value: string) =>
 
 
 // ─── Hook: live Firestore brands ──────────────────────────────────
+
 function useFirestoreBrands(){
   const [brands,setBrands]=useState<FirestoreBrand[]>([]);
   const [loading,setLoading]=useState(true);
-  useEffect(()=>{
-    const unsub=onSnapshot(
-      collection(db,'brands'),
-      snap=>{
-        setBrands(snap.docs.map(d=>({id:d.id,...d.data()} as FirestoreBrand)));
-        setLoading(false);
-      },
-      err=>{
-        console.error('brands listener failed', err);
-        setLoading(false);
-      }
-    );
-    return unsub;
-  },[]);
-  return {brands,loading};
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try{
+      const snap = await getDocs(collection(db,'brands'));
+      setBrands(snap.docs.map(d=>({id:d.id,...d.data()} as FirestoreBrand)));
+    }catch(err){
+      console.error('brands load failed', err);
+    }finally{
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const id = window.setInterval(() => { void refresh(); }, 30000);
+    return () => window.clearInterval(id);
+  }, [refresh]);
+
+  return {brands,loading,refresh};
 }
 
 function useFirestoreIssues(){
   const [issues,setIssues]=useState<FirestoreIssue[]>([]);
   const [loading,setLoading]=useState(true);
-  useEffect(()=>{
-    const unsub=onSnapshot(
-      collection(db,'issues'),
-      snap=>{
-        setIssues(snap.docs.map(d=>({id:d.id,...d.data()} as FirestoreIssue)));
-        setLoading(false);
-      },
-      err=>{
-        console.error('issues listener failed', err);
-        setLoading(false);
-      }
-    );
-    return unsub;
-  },[]);
-  return {issues,loading};
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try{
+      const snap = await getDocs(collection(db,'issues'));
+      setIssues(snap.docs.map(d=>({id:d.id,...d.data()} as FirestoreIssue)));
+    }catch(err){
+      console.error('issues load failed', err);
+    }finally{
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const id = window.setInterval(() => { void refresh(); }, 30000);
+    return () => window.clearInterval(id);
+  }, [refresh]);
+
+  return {issues,loading,refresh};
 }
 
 function useFirestorePricing(){
   const [pricing,setPricing]=useState<FirestorePricing[]>([]);
   const [loading,setLoading]=useState(true);
 
-  useEffect(()=>{
-    const mapDoc = (docData: any, id: string): FirestorePricing => ({
-      id,
-      brandId: docData.brandId || '',
-      brandName: docData.brandName,
-      modelId: docData.modelId,
-      modelName: docData.modelName || docData.model || docData.modelLabel,
-      issueId: docData.issueId || '',
-      name: docData.name || docData.issueName || '',
-      price: Number(docData.price || 0),
-      oldPrice: docData.oldPrice === null || docData.oldPrice === undefined || docData.oldPrice === '' ? null : Number(docData.oldPrice),
-      time: docData.time || '45–60 min',
-    });
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try{
+      const snap = await getDocs(collection(db,'pricing'));
+      const mapDoc = (docData: any, id: string): FirestorePricing => ({
+        id,
+        brandId: docData.brandId || '',
+        brandName: docData.brandName,
+        modelId: docData.modelId,
+        modelName: docData.modelName || docData.model || docData.modelLabel,
+        issueId: docData.issueId || '',
+        name: docData.name || docData.issueName || '',
+        price: Number(docData.price || 0),
+        oldPrice: docData.oldPrice === null || docData.oldPrice === undefined || docData.oldPrice === '' ? null : Number(docData.oldPrice),
+        time: docData.time || '45–60 min',
+      });
 
-    const unsub=onSnapshot(
-      collection(db,'pricing'),
-      snap=>{
-        const pricingDocs = snap.docs.map(d=>mapDoc(d.data(), d.id));
-        pricingDocs.sort((a, b) => {
-          const brandA = (a.brandName || a.brandId || '').toLowerCase();
-          const brandB = (b.brandName || b.brandId || '').toLowerCase();
-          if (brandA !== brandB) return brandA.localeCompare(brandB);
-          const modelA = (a.modelName || a.modelId || '').toLowerCase();
-          const modelB = (b.modelName || b.modelId || '').toLowerCase();
-          if (modelA !== modelB) return modelA.localeCompare(modelB);
-          return (a.name || '').localeCompare(b.name || '');
-        });
-        setPricing(pricingDocs);
-        setLoading(false);
-      },
-      err=>{
-        console.error('pricing listener failed', err);
-        setLoading(false);
-      }
-    );
+      const pricingDocs = snap.docs.map(d=>mapDoc(d.data(), d.id));
+      pricingDocs.sort((a, b) => {
+        const brandA = (a.brandName || a.brandId || '').toLowerCase();
+        const brandB = (b.brandName || b.brandId || '').toLowerCase();
+        if (brandA !== brandB) return brandA.localeCompare(brandB);
+        const modelA = (a.modelName || a.modelId || '').toLowerCase();
+        const modelB = (b.modelName || b.modelId || '').toLowerCase();
+        if (modelA !== modelB) return modelA.localeCompare(modelB);
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      setPricing(pricingDocs);
+    }catch(err){
+      console.error('pricing load failed', err);
+    }finally{
+      setLoading(false);
+    }
+  }, []);
 
-    return () => unsub();
-  },[]);
+  useEffect(() => {
+    void refresh();
+    const id = window.setInterval(() => { void refresh(); }, 30000);
+    return () => window.clearInterval(id);
+  }, [refresh]);
 
-  return {pricing,loading};
+  return {pricing,loading,refresh};
 }
+
 
 // ─── Root Shell ───────────────────────────────────────────────────
 export const AdminDashboard: React.FC = () => {
@@ -827,7 +841,7 @@ const CatalogTab: React.FC = () => {
 const PricingTab: React.FC = () => {
   const {brands}=useFirestoreBrands();
   const {issues}=useFirestoreIssues();
-  const {pricing,loading}=useFirestorePricing();
+  const {pricing,loading,refresh:refreshPricing}=useFirestorePricing();
   const [filterBrand,setFilterBrand]=useState('all');
   const [saving,setSaving]=useState(false);
   const [editId,setEditId]=useState<string|null>(null);
@@ -917,7 +931,16 @@ const PricingTab: React.FC = () => {
 
   const deletePricing=async(id:string)=>{
     if(!confirm('Delete this pricing entry?'))return;
-    await deleteDoc(doc(db,'pricing',id));
+    setSaving(true);
+    try{
+      await deleteDoc(doc(db,'pricing',id));
+      await refreshPricing();
+    }catch(err){
+      console.error('pricing delete failed', err);
+      alert('Unable to delete pricing right now.');
+    }finally{
+      setSaving(false);
+    }
   };
 
   const filtered=filterBrand==='all'?pricing:pricing.filter(p=>p.brandId===filterBrand);
